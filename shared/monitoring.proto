@@ -1,0 +1,133 @@
+syntax = "proto3";
+
+package monitoring;
+
+// Service definition for Monitor Agent <-> gRPC Server communication
+service MonitoringService {
+    // Bidirectional streaming for agent-server communication
+    // Agent streams: MetricsRequest, CommandResponseMessage
+    // Server streams: CommandMessage, Ack
+    rpc StreamCommunication(stream AgentMessage) returns (stream ServerMessage);
+    
+    // Agent registers itself with the server (called once at startup)
+    rpc RegisterAgent(AgentRegistration) returns (Ack);
+}
+
+// ============================================================================
+// Monitoring Data Messages
+// ============================================================================
+
+message SystemMetrics {
+    double cpu_percent = 1;
+    double memory_percent = 2;
+    double memory_used_mb = 3;
+    double memory_total_mb = 4;
+    double disk_read_mb = 5;
+    double disk_write_mb = 6;
+    double net_in_mb = 7;
+    double net_out_mb = 8;
+    map<string, string> custom_metrics = 9;
+}
+
+message MetricsRequest {
+    string agent_id = 1;
+    string hostname = 2;
+    int64 timestamp = 3;  // Unix timestamp
+    SystemMetrics metrics = 4;
+    map<string, string> metadata = 5;
+}
+
+message MetricsResponse {
+    bool success = 1;
+    string message = 2;
+    int64 timestamp = 3;
+}
+
+// ============================================================================
+// Command Messages
+// ============================================================================
+
+enum CommandType {
+    UPDATE_CONFIG = 0;
+    START_COLLECTION = 1;
+    STOP_COLLECTION = 2;
+    RESTART_AGENT = 3;
+    GET_STATUS = 4;
+    CUSTOM = 5;
+}
+
+message CommandMessage {
+    string command_id = 1;
+    CommandType command_type = 2;
+    string target_agent_id = 3;
+    map<string, string> parameters = 4;
+    int64 timestamp = 5;
+    int32 timeout = 6;
+}
+
+message CommandResponseMessage {
+    string command_id = 1;
+    string agent_id = 2;
+    bool success = 3;
+    string message = 4;
+    map<string, string> result = 5;
+    int64 timestamp = 6;
+}
+
+// ============================================================================
+// Agent Registration and Heartbeat
+// ============================================================================
+
+message AgentRegistration {
+    string agent_id = 1;
+    string hostname = 2;
+    string os_type = 3;
+    string os_version = 4;
+    int64 timestamp = 5;
+}
+
+message AgentHeartbeat {
+    string agent_id = 1;
+    int64 timestamp = 2;
+    string status = 3;  // running, stopped, error
+}
+
+// ============================================================================
+// Streaming Messages
+// ============================================================================
+
+// Message from Agent to Server
+message AgentMessage {
+    oneof message {
+        MetricsData metrics_data = 1;
+        CommandResponseMessage command_response = 2;
+        AgentHeartbeat heartbeat = 3;
+    }
+}
+
+// Simplified metrics data for streaming
+message MetricsData {
+    string agent_id = 1;
+    string hostname = 2;
+    int64 timestamp = 3;
+    SystemMetrics metrics = 4;
+    map<string, string> metadata = 5;
+}
+
+// Message from Server to Agent
+message ServerMessage {
+    oneof message {
+        CommandMessage command = 1;
+        Ack acknowledgment = 2;
+    }
+}
+
+// ============================================================================
+// Common Messages
+// ============================================================================
+
+message Ack {
+    bool success = 1;
+    string message = 2;
+}
+

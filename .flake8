@@ -1,0 +1,6 @@
+[flake8]
+ignore = E501, F401
+max-line-length = 120
+exclude = .git, __pycache__, .pytest_cache, .venv, .env, .env.local, .env.development.local, .env.test.local, .env.production.local, *_pb2*
+per-file-ignores = __init__.py:F401
+max-complexity = 10
