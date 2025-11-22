@@ -7,23 +7,17 @@ from .models import (
     MonitoringData,
     Command,
     CommandType,
-    CommandResponse,
-    AgentStatus,
-    AgentInfo,
-    KafkaTopics,
-    KafkaMessage,
-    PluginInterface,
     MetricType,
 )
 
 from .kafka_schemas import (
-    KafkaTopics as KafkaTopicsClass,
+    KafkaTopics,
     serialize_monitoring_data,
-    serialize_command,
-    serialize_command_response,
-    serialize_agent_status,
     deserialize_message,
 )
+
+from . import monitoring_pb2
+from . import monitoring_pb2_grpc
 
 __all__ = [
     # Models
@@ -31,19 +25,12 @@ __all__ = [
     "MonitoringData",
     "Command",
     "CommandType",
-    "CommandResponse",
-    "AgentStatus",
-    "AgentInfo",
-    "KafkaTopics",
-    "KafkaMessage",
-    "PluginInterface",
     "MetricType",
     # Kafka Schemas
-    "KafkaTopicsClass",
+    "KafkaTopics",
     "serialize_monitoring_data",
-    "serialize_command",
-    "serialize_command_response",
-    "serialize_agent_status",
     "deserialize_message",
+    # Protobuf
+    "monitoring_pb2",
+    "monitoring_pb2_grpc",
 ]
-

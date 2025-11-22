@@ -34,7 +34,6 @@ class KafkaProducerService:
     def send_monitoring_data(
         self,
         agent_id: str,
-        hostname: str,
         timestamp: int,
         metrics: dict,
         metadata: dict,
@@ -44,7 +43,6 @@ class KafkaProducerService:
 
         Args:
             agent_id: Agent identifier
-            hostname: Hostname of monitored machine
             timestamp: Unix timestamp
             metrics: Metrics dictionary
             metadata: Metadata dictionary
@@ -56,7 +54,6 @@ class KafkaProducerService:
             # Construct monitoring data message
             monitoring_data = {
                 "agent_id": agent_id,
-                "hostname": hostname,
                 "timestamp": datetime.fromtimestamp(timestamp).isoformat(),
                 "metrics": metrics,
                 "metadata": metadata,

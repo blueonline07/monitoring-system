@@ -4,11 +4,8 @@ package monitoring;
 
 // Service definition for Monitor Agent <-> gRPC Server communication
 service MonitoringService {
-    // Agent sends monitoring data to server
-    rpc SendMetrics(MetricsRequest) returns (MetricsResponse);
-    
-    // Agent registers itself with the server (optional)
-    rpc RegisterAgent(AgentRegistration) returns (Ack);
+    // Bidirectional streaming: Agent sends metrics, receives commands
+    rpc StreamMetrics(stream MetricsRequest) returns (stream Command);
 }
 
 // ============================================================================
@@ -24,78 +21,29 @@ message SystemMetrics {
     double disk_write_mb = 6;
     double net_in_mb = 7;
     double net_out_mb = 8;
-    map<string, string> custom_metrics = 9;
 }
 
 message MetricsRequest {
     string agent_id = 1;
-    string hostname = 2;
-    int64 timestamp = 3;  // Unix timestamp
-    SystemMetrics metrics = 4;
-    map<string, string> metadata = 5;
-}
-
-message MetricsResponse {
-    bool success = 1;
-    string message = 2;
-    int64 timestamp = 3;
+    int64 timestamp = 2;  // Unix timestamp
+    SystemMetrics metrics = 3;
+    map<string, string> metadata = 4;
 }
 
 // ============================================================================
 // Command Messages
 // ============================================================================
 
+// Command types
 enum CommandType {
-    UPDATE_CONFIG = 0;
-    START_COLLECTION = 1;
-    STOP_COLLECTION = 2;
-    RESTART_AGENT = 3;
-    GET_STATUS = 4;
-    CUSTOM = 5;
+    START = 0;
+    STOP = 1;
 }
 
-message CommandMessage {
-    string command_id = 1;
-    CommandType command_type = 2;
-    string target_agent_id = 3;
-    map<string, string> parameters = 4;
-    int64 timestamp = 5;
-    int32 timeout = 6;
+// Command for agent (start/stop only)
+message Command {
+    string agent_id = 1;  // Target agent ID
+    CommandType type = 2;  // Command type
 }
 
-message CommandResponseMessage {
-    string command_id = 1;
-    string agent_id = 2;
-    bool success = 3;
-    string message = 4;
-    map<string, string> result = 5;
-    int64 timestamp = 6;
-}
-
-// ============================================================================
-// Agent Registration and Heartbeat
-// ============================================================================
-
-message AgentRegistration {
-    string agent_id = 1;
-    string hostname = 2;
-    string os_type = 3;
-    string os_version = 4;
-    int64 timestamp = 5;
-}
-
-message AgentHeartbeat {
-    string agent_id = 1;
-    int64 timestamp = 2;
-    string status = 3;  // running, stopped, error
-}
-
-// ============================================================================
-// Common Messages
-// ============================================================================
-
-message Ack {
-    bool success = 1;
-    string message = 2;
-}
 
