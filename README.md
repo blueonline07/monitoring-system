@@ -108,22 +108,6 @@ Accessible at:
 - Bootstrap server: `localhost:9092`
 - Kafka UI: `http://localhost:8080`
 
-## 📚 Documentation
-
-- **[docs/DATA_MODELS.md](docs/DATA_MODELS.md)** - Complete data model reference
-- **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture & design
-- **[docs/STREAMING.md](docs/STREAMING.md)** - Bidirectional streaming details
-- **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)** - Development guide
-
-## ✨ Features
-
-✅ **Bidirectional Streaming** - Real-time communication, no polling  
-✅ **Modular Architecture** - Independent, scalable components  
-✅ **Mock Agent** - Easy testing with generated metrics  
-✅ **Kafka Integration** - Persistent storage & decoupling  
-✅ **Command Control** - START/STOP agents remotely  
-✅ **Simple Configuration** - Clean, minimal setup  
-
 ## 🎓 Examples
 
 ### Basic Usage
@@ -180,30 +164,4 @@ Check active agents:
 python3 -m grpc_tools.protoc -I. --python_out=. --grpc_python_out=. shared/monitoring.proto
 ```
 
-### Run Tests
-```bash
-# Start all components and verify data flow
-./test_flow.sh  # TODO: Create test script
-```
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## 📝 License
-
-MIT License
-
-## 🙏 Acknowledgments
-
-Built with:
-- gRPC - Efficient RPC framework
-- Kafka - Distributed streaming platform
-- Protocol Buffers - Data serialization
-
 ---
-
-**Need help?** Check the [docs/](docs/) folder for detailed documentation.

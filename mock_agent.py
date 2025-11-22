@@ -41,6 +41,8 @@ class MockAgent:
         # Control flags
         self.running = False
         self.stop_event = threading.Event()
+        # Start in stopped state - agent waits for START command
+        self.stop_event.set()
 
     def generate_mock_metrics(self) -> Dict[str, Any]:
         """Generate random mock system metrics"""
@@ -81,16 +83,24 @@ class MockAgent:
         print(f"\n📥 Command received: {cmd_type_name} for agent: {command.agent_id}")
 
         if command.type == monitoring_pb2.STOP:
-            print("  ✓ Stopping collection")
+            print("  ✓ Stopping collection (connection will remain alive)")
             self.stop_event.set()
         elif command.type == monitoring_pb2.START:
             print("  ✓ Starting collection")
             self.stop_event.clear()
 
     def metrics_generator(self):
-        """Generator that yields metrics at configured interval"""
+        """Generator that yields metrics at configured interval
+
+        When stopped, keeps the connection alive by waiting but not sending metrics.
+        """
         count = 0
-        while self.running and not self.stop_event.is_set():
+        while self.running:
+            # If stopped, wait but don't send metrics (keeps connection alive)
+            if self.stop_event.is_set():
+                time.sleep(self.interval)
+                continue
+
             count += 1
             print(f"\n[{count}] Generating metrics...")
 
