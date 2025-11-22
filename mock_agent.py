@@ -41,8 +41,8 @@ class MockAgent:
         # Control flags
         self.running = False
         self.stop_event = threading.Event()
-        # Start in stopped state - agent waits for START command
-        self.stop_event.set()
+        # Start in running state - agent sends metrics immediately
+        # (STOP command will pause it)
 
     def generate_mock_metrics(self) -> Dict[str, Any]:
         """Generate random mock system metrics"""
@@ -83,22 +83,30 @@ class MockAgent:
         print(f"\n📥 Command received: {cmd_type_name} for agent: {command.agent_id}")
 
         if command.type == monitoring_pb2.STOP:
-            print("  ✓ Stopping collection (connection will remain alive)")
+            print("  ✓ Stopping metrics collection (connection will remain alive)")
             self.stop_event.set()
         elif command.type == monitoring_pb2.START:
-            print("  ✓ Starting collection")
+            print("  ✓ Resuming metrics collection")
             self.stop_event.clear()
 
     def metrics_generator(self):
         """Generator that yields metrics at configured interval
 
-        When stopped, keeps the connection alive by waiting but not sending metrics.
+        When stopped, sends keepalive every 1 second so server can send commands.
         """
         count = 0
         while self.running:
-            # If stopped, wait but don't send metrics (keeps connection alive)
+            # If stopped, send keepalive (empty metrics) so server can send commands
             if self.stop_event.is_set():
-                time.sleep(self.interval)
+                # Send minimal keepalive - must send something for bidirectional stream to work
+                keepalive = monitoring_pb2.MetricsRequest(
+                    agent_id=self.agent_id,
+                    timestamp=int(datetime.now().timestamp()),
+                    metrics=monitoring_pb2.SystemMetrics(),  # Empty metrics
+                    metadata={"keepalive": "true"},
+                )
+                yield keepalive
+                time.sleep(1.0)  # Send keepalive every 1 second when stopped
                 continue
 
             count += 1
@@ -152,6 +160,8 @@ class MockAgent:
 
         print("✓ Connected to gRPC server")
         print("✓ Starting bidirectional stream...")
+        print("✓ Agent will start sending metrics immediately")
+        print("  (Use STOP command to pause, START to resume)")
         print()
 
         self.running = True  # Set before creating generator!

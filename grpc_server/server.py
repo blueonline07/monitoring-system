@@ -5,6 +5,8 @@ gRPC Server - Receives monitoring data from agents and forwards to Kafka (with s
 import grpc
 from concurrent import futures
 import queue
+import threading
+import time
 from typing import Dict
 
 from shared import monitoring_pb2
@@ -41,62 +43,84 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
         print("\n🔵 StreamMetrics called!")
         agent_id = None
         command_queue = queue.Queue()
+        received_metrics = queue.Queue()
+        stop_threads = threading.Event()
 
-        try:
-            for request in request_iterator:
-                try:
-                    # Get agent ID from first request
+        def process_requests():
+            """Background thread to process incoming requests from agent"""
+            nonlocal agent_id
+            try:
+                for request in request_iterator:
+                    # Get agent ID from first request and register
                     if agent_id is None:
                         agent_id = request.agent_id
                         self.agent_command_queues[agent_id] = command_queue
                         print(f"\n✓ Agent connected (streaming): {agent_id}")
+                        print("  Agent registered and ready to receive commands")
 
-                    # Process metrics
+                    # Queue metrics for processing
+                    received_metrics.put(request)
+            except Exception as e:
+                print(f"\n✗ Error in request processor: {e}")
+            finally:
+                stop_threads.set()
+
+        # Start request processor thread
+        request_thread = threading.Thread(target=process_requests, daemon=True)
+        request_thread.start()
+
+        try:
+            # Main loop: process metrics and send commands independently
+            while not stop_threads.is_set():
+                # Process any received metrics
+                try:
+                    request = received_metrics.get(timeout=0.1)
                     timestamp = request.timestamp
 
-                    print("\n[Metrics Received - Stream]")
-                    print(f"  Agent: {agent_id}")
-                    print(f"  CPU: {request.metrics.cpu_percent:.2f}%")
-                    print(f"  Memory: {request.metrics.memory_percent:.2f}%")
+                    # Check if this is a keepalive (stopped agent)
+                    is_keepalive = request.metadata.get("keepalive") == "true"
 
-                    # Send to Kafka
-                    success = self.kafka_producer.send_monitoring_data(
-                        agent_id=agent_id,
-                        timestamp=timestamp,
-                        metrics={
-                            "cpu_percent": request.metrics.cpu_percent,
-                            "memory_percent": request.metrics.memory_percent,
-                            "memory_used_mb": request.metrics.memory_used_mb,
-                            "memory_total_mb": request.metrics.memory_total_mb,
-                            "disk_read_mb": request.metrics.disk_read_mb,
-                            "disk_write_mb": request.metrics.disk_write_mb,
-                            "net_in_mb": request.metrics.net_in_mb,
-                            "net_out_mb": request.metrics.net_out_mb,
-                        },
-                        metadata=dict(request.metadata),
+                    if not is_keepalive:
+                        print("\n[Metrics Received - Stream]")
+                        print(f"  Agent: {agent_id}")
+                        print(f"  CPU: {request.metrics.cpu_percent:.2f}%")
+                        print(f"  Memory: {request.metrics.memory_percent:.2f}%")
+
+                        # Send to Kafka (only real metrics, not keepalives)
+                        success = self.kafka_producer.send_monitoring_data(
+                            agent_id=agent_id,
+                            timestamp=timestamp,
+                            metrics={
+                                "cpu_percent": request.metrics.cpu_percent,
+                                "memory_percent": request.metrics.memory_percent,
+                                "memory_used_mb": request.metrics.memory_used_mb,
+                                "memory_total_mb": request.metrics.memory_total_mb,
+                                "disk_read_mb": request.metrics.disk_read_mb,
+                                "disk_write_mb": request.metrics.disk_write_mb,
+                                "net_in_mb": request.metrics.net_in_mb,
+                                "net_out_mb": request.metrics.net_out_mb,
+                            },
+                            metadata=dict(request.metadata),
+                        )
+
+                        if success:
+                            print("✓ Forwarded to Kafka topic: monitoring-data")
+                        else:
+                            print("✗ Failed to forward to Kafka")
+                    # else: Silent keepalive - just allows command delivery
+                except queue.Empty:
+                    pass
+
+                # Check for commands to send (independent of receiving metrics)
+                try:
+                    command = command_queue.get_nowait()
+                    cmd_name = (
+                        "START" if command.type == monitoring_pb2.START else "STOP"
                     )
-
-                    if success:
-                        print("✓ Forwarded to Kafka topic: monitoring-data")
-                    else:
-                        print("✗ Failed to forward to Kafka")
-
-                    # Check for commands to send to agent
-                    try:
-                        # Non-blocking check for commands
-                        command = command_queue.get_nowait()
-                        print(f"\n📤 Sending command to agent {agent_id}")
-                        yield command
-                    except queue.Empty:
-                        # No commands to send
-                        pass
-
-                except Exception as e:
-                    print(f"\n✗ Error processing request: {type(e).__name__}: {e}")
-                    import traceback
-
-                    traceback.print_exc()
-                    raise
+                    print(f"\n📤 Sending {cmd_name} command to agent {agent_id}")
+                    yield command
+                except queue.Empty:
+                    pass
 
         except grpc.RpcError as e:
             print(f"\n✗ Stream error for agent {agent_id}: {e}")
@@ -107,6 +131,7 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
             traceback.print_exc()
         finally:
             # Cleanup when agent disconnects
+            stop_threads.set()
             if agent_id and agent_id in self.agent_command_queues:
                 del self.agent_command_queues[agent_id]
                 print(f"\n✓ Agent disconnected: {agent_id}")
