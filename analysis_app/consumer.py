@@ -7,6 +7,8 @@ from confluent_kafka import Consumer
 import socket
 import time
 import json
+import dotenv
+dotenv.load_dotenv()
 
 from shared.config import KafkaTopics
 

@@ -3,6 +3,10 @@
 Entry point for running the monitoring agent
 """
 import os
+import dotenv
+dotenv.load_dotenv()
+
+
 import argparse
 from agent.agent import MonitoringAgent
 

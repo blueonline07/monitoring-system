@@ -7,6 +7,8 @@ gRPC Server - Broker between Agents and Kafka
 import os
 import grpc
 from concurrent import futures
+import dotenv
+dotenv.load_dotenv()
 
 from shared import monitoring_pb2
 from shared import monitoring_pb2_grpc

@@ -7,3 +7,4 @@ typing_extensions==4.15.0
 pydantic==2.10.4
 psutil==5.9.8
 etcd3==0.12.0
+python-dotenv==1.0.1
