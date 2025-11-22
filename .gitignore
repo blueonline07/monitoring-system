@@ -1,0 +1,66 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment and pip cache
+venv/
+env/
+ENV/
+.venv/
+.pip/
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+.eggs/
+
+# Protobuf and gRPC Python generated code
+*.pb2.py
+*.pb2_grpc.py
+
+# Pytest, coverage, and test outputs
+.cache/
+.coverage
+.coverage.*
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# VS Code and PyCharm settings
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# dotenv environment variables
+.env
+.env.*
+
+# mypy/mkdocs/static analysis
+.mypy_cache/
+.dmypy.json
+.pyre/
+
+# Ignore Kafka log and data directories (if running local Kafka for testing)
+kafka-logs/
+zookeeper-logs/
+
+# Ignore file for monitoring configs or tmp files
+*.tmp
+monitoring-agent-config.yaml
+
