@@ -1,5 +1,5 @@
 """
-Analysis Application - CLI tool to read metrics from Kafka and send commands
+Analysis Application - CLI tool to read metrics from Kafka
 """
 
 from confluent_kafka import Consumer
@@ -11,7 +11,7 @@ from shared.config import KafkaTopics
 
 
 class AnalysisApp:
-    """Analysis application: reads metrics from Kafka, sends commands to Kafka"""
+    """Analysis application: reads metrics from Kafka"""
 
     def __init__(
         self,
