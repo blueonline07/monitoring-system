@@ -1,12 +1,11 @@
 """
-Simple Mock Agent - Generates and sends mock monitoring data with streaming and plugins
+Monitoring Agent - Sends metrics via bidirectional streaming
 """
 
 import grpc
 import socket
 import time
 import random
-import threading
 from datetime import datetime
 from typing import Dict, Any
 
@@ -14,20 +13,13 @@ from shared import monitoring_pb2
 from shared import monitoring_pb2_grpc
 
 
-# ============================================================================
-# Mock Agent with Streaming
-# ============================================================================
-
-
 class MockAgent:
-    """Mock agent that generates data and sends via streaming"""
+    """Agent that sends periodic metrics and receives commands via bidirectional streaming"""
 
     def __init__(self, agent_id: str, server_address: str):
         self.agent_id = agent_id
         self.hostname = socket.gethostname()
         self.server_address = server_address
-
-        # Configuration (can be updated by commands)
         self.interval = 5
         self.active_metrics = [
             "cpu",
@@ -37,12 +29,7 @@ class MockAgent:
             "net_in",
             "net_out",
         ]
-
-        # Control flags
         self.running = False
-        self.stop_event = threading.Event()
-        # Start in running state - agent sends metrics immediately
-        # (STOP command will pause it)
 
     def generate_mock_metrics(self) -> Dict[str, Any]:
         """Generate random mock system metrics"""
@@ -78,149 +65,69 @@ class MockAgent:
         return all_metrics
 
     def handle_command(self, command: monitoring_pb2.Command):
-        """Handle incoming command from server"""
-        cmd_type_name = "START" if command.type == monitoring_pb2.START else "STOP"
-        print(f"\n📥 Command received: {cmd_type_name} for agent: {command.agent_id}")
-
-        if command.type == monitoring_pb2.STOP:
-            print("  ✓ Stopping metrics collection (connection will remain alive)")
-            self.stop_event.set()
-        elif command.type == monitoring_pb2.START:
-            print("  ✓ Resuming metrics collection")
-            self.stop_event.clear()
+        """Handle command from server"""
+        # Handle commands here when needed
+        pass
 
     def metrics_generator(self):
-        """Generator that yields metrics at configured interval
-
-        When stopped, sends keepalive every 1 second so server can send commands.
-        """
-        count = 0
+        """Generator: sends periodic metrics"""
         while self.running:
-            # If stopped, send keepalive (empty metrics) so server can send commands
-            if self.stop_event.is_set():
-                # Send minimal keepalive - must send something for bidirectional stream to work
-                keepalive = monitoring_pb2.MetricsRequest(
-                    agent_id=self.agent_id,
-                    timestamp=int(datetime.now().timestamp()),
-                    metrics=monitoring_pb2.SystemMetrics(),  # Empty metrics
-                    metadata={"keepalive": "true"},
-                )
-                yield keepalive
-                time.sleep(1.0)  # Send keepalive every 1 second when stopped
-                continue
-
-            count += 1
-            print(f"\n[{count}] Generating metrics...")
-
-            # Generate metrics
             metrics = self.generate_mock_metrics()
-
-            print(f"  CPU: {metrics['cpu_percent']:.2f}%")
-            print(f"  Memory: {metrics['memory_percent']:.2f}%")
-
-            # Create protobuf message
-            system_metrics = monitoring_pb2.SystemMetrics(
-                cpu_percent=metrics["cpu_percent"],
-                memory_percent=metrics["memory_percent"],
-                memory_used_mb=metrics["memory_used_mb"],
-                memory_total_mb=metrics["memory_total_mb"],
-                disk_read_mb=metrics["disk_read_mb"],
-                disk_write_mb=metrics["disk_write_mb"],
-                net_in_mb=metrics["net_in_mb"],
-                net_out_mb=metrics["net_out_mb"],
-            )
-
-            request = monitoring_pb2.MetricsRequest(
+            yield monitoring_pb2.MetricsRequest(
                 agent_id=self.agent_id,
                 timestamp=int(datetime.now().timestamp()),
-                metrics=system_metrics,
+                metrics=monitoring_pb2.SystemMetrics(
+                    cpu_percent=metrics["cpu_percent"],
+                    memory_percent=metrics["memory_percent"],
+                    memory_used_mb=metrics["memory_used_mb"],
+                    memory_total_mb=metrics["memory_total_mb"],
+                    disk_read_mb=metrics["disk_read_mb"],
+                    disk_write_mb=metrics["disk_write_mb"],
+                    net_in_mb=metrics["net_in_mb"],
+                    net_out_mb=metrics["net_out_mb"],
+                ),
                 metadata={},
             )
-
-            yield request
-
-            # Wait for configured interval
             time.sleep(self.interval)
 
     def run_streaming(self):
-        """Run agent with bidirectional streaming"""
-        print("=" * 60)
-        print(f"Mock Agent (Streaming): {self.agent_id}")
-        print("=" * 60)
-        print(f"  Hostname: {self.hostname}")
-        print(f"  Server: {self.server_address}")
-        print(f"  Initial interval: {self.interval}s")
-        print(f"  Active metrics: {self.active_metrics}")
-        print("=" * 60)
-        print()
-
-        # Connect to gRPC server
+        """Run agent: send metrics via bidirectional stream, receive commands"""
         channel = grpc.insecure_channel(self.server_address)
         stub = monitoring_pb2_grpc.MonitoringServiceStub(channel)
 
-        print("✓ Connected to gRPC server")
-        print("✓ Starting bidirectional stream...")
-        print("✓ Agent will start sending metrics immediately")
-        print("  (Use STOP command to pause, START to resume)")
-        print()
-
-        self.running = True  # Set before creating generator!
+        print(f"✓ Agent {self.agent_id} connected to {self.server_address}")
+        self.running = True
 
         try:
-            # Start bidirectional streaming
+            # Bidirectional streaming: send metrics, receive commands
             response_stream = stub.StreamMetrics(self.metrics_generator())
-
-            # Listen for commands
             for command in response_stream:
                 if not self.running:
                     break
                 self.handle_command(command)
-
-        except grpc.RpcError as e:
-            print(f"\n✗ gRPC Error: {e.code()} - {e.details()}")
         except KeyboardInterrupt:
-            print("\n\n⚠ Keyboard interrupt received")
+            pass
         finally:
-            print("\n✓ Shutting down...")
             self.running = False
-            self.stop_event.set()
             channel.close()
-            print("✓ Disconnected")
 
 
 def main():
-    """Main entry point"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Simple Mock Agent with Streaming")
+    parser = argparse.ArgumentParser(description="Monitoring Agent")
+    parser.add_argument("--agent-id", type=str, default="agent-001", help="Agent ID")
     parser.add_argument(
-        "--agent-id",
-        type=str,
-        default="agent-001",
-        help="Agent identifier",
+        "--server", type=str, default="localhost:50051", help="gRPC server"
     )
     parser.add_argument(
-        "--server",
-        type=str,
-        default="localhost:50051",
-        help="gRPC server address",
-    )
-    parser.add_argument(
-        "--interval",
-        type=int,
-        default=5,
-        help="Initial interval between sends (seconds)",
+        "--interval", type=int, default=5, help="Metrics interval (seconds)"
     )
 
     args = parser.parse_args()
 
-    # Create and run agent
-    agent = MockAgent(
-        agent_id=args.agent_id,
-        server_address=args.server,
-    )
+    agent = MockAgent(args.agent_id, args.server)
     agent.interval = args.interval
-
     agent.run_streaming()
 
 

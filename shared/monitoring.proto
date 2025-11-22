@@ -3,12 +3,15 @@ syntax = "proto3";
 package monitoring;
 
 // Service definition for Monitor Agent <-> gRPC Server communication
+// Following Lab 2 bidirectional streaming pattern:
+// - Agent sends periodic monitoring data (stream MetricsRequest)
+// - Server sends commands to agent (stream Command)
+// Pattern: rpc CommandStream (stream CommandResponse) returns (stream CommandRequest);
 service MonitoringService {
-    // Bidirectional streaming: Agent sends metrics, receives commands
+    // Bidirectional streaming: Agent sends periodic metrics, Server sends commands
+    // Pattern matches Lab 2: stream from client (agent) -> stream from server (commands)
+    // All commands are sent through this bidirectional stream - no separate RPC needed
     rpc StreamMetrics(stream MetricsRequest) returns (stream Command);
-    
-    // Send command to an agent (from external clients)
-    rpc SendCommand(Command) returns (CommandResponse);
 }
 
 // ============================================================================
@@ -39,20 +42,16 @@ message MetricsRequest {
 
 // Command types
 enum CommandType {
-    START = 0;
-    STOP = 1;
+    // Reserved for future commands
 }
 
-// Command for agent (start/stop only)
+// Command for agent
 message Command {
     string agent_id = 1;  // Target agent ID
     CommandType type = 2;  // Command type
+    map<string, string> parameters = 3;  // Optional command parameters
 }
 
-// Response to command send request
-message CommandResponse {
-    bool success = 1;  // Whether command was queued successfully
-    string message = 2;  // Response message
-}
+
 
 

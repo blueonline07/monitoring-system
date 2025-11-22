@@ -1,32 +1,25 @@
 """
-Analysis Application - Consumes and analyzes monitoring data from Kafka
+Analysis Application - CLI tool to read metrics from Kafka and send commands
 """
 
 from confluent_kafka import Consumer
 import socket
+import time
 import json
 
 from shared.config import KafkaTopics
 
 
 class AnalysisApp:
-    """Analysis application that consumes and displays monitoring data from Kafka"""
+    """Analysis application: reads metrics from Kafka, sends commands to Kafka"""
 
     def __init__(
         self,
         bootstrap_servers: str = "localhost:9092",
         group_id: str = "analysis-app-group",
     ):
-        """
-        Initialize analysis application
-
-        Args:
-            bootstrap_servers: Kafka bootstrap servers address
-            group_id: Consumer group ID
-        """
         self.bootstrap_servers = bootstrap_servers
         self.group_id = group_id
-
         self.consumer = Consumer(
             {
                 "bootstrap.servers": bootstrap_servers,
@@ -36,130 +29,107 @@ class AnalysisApp:
                 "client.id": socket.gethostname(),
             }
         )
-
-        # Subscribe to monitoring-data topic
         self.consumer.subscribe([KafkaTopics.MONITORING_DATA])
-        print(f"✓ Subscribed to Kafka topic: {KafkaTopics.MONITORING_DATA}")
 
     def display_metrics(self, data: dict):
-        """
-        Display monitoring data in a readable format
-
-        Args:
-            data: Monitoring data dictionary
-        """
-        agent_id = data.get("agent_id", "unknown")
-        hostname = data.get("hostname", "unknown")
-        timestamp = data.get("timestamp", "")
-        metrics = data.get("metrics", {})
-        metadata = data.get("metadata", {})
-
-        print("\n" + "=" * 70)
-        print("📊 MONITORING DATA RECEIVED")
-        print("=" * 70)
-        print(f"  Agent ID:   {agent_id}")
-        print(f"  Hostname:   {hostname}")
-        print(f"  Timestamp:  {timestamp}")
-        print(f"  Mode:       {metadata.get('mode', 'N/A')}")
-        print()
-        print("📈 System Metrics:")
-        print(f"  CPU Usage:       {metrics.get('cpu_percent', 0):.2f}%")
-        print(f"  Memory Usage:    {metrics.get('memory_percent', 0):.2f}%")
+        """Display metrics to stdout"""
+        m = data.get("metrics", {})
+        print(f"\n[{data.get('agent_id', 'unknown')}] {data.get('timestamp', '')}")
         print(
-            f"  Memory Used:     {metrics.get('memory_used_mb', 0):.2f} / {metrics.get('memory_total_mb', 0):.2f} MB"
+            f"  CPU: {m.get('cpu_percent', 0):.2f}% | Memory: {m.get('memory_percent', 0):.2f}%"
         )
-        print(f"  Disk Read:       {metrics.get('disk_read_mb', 0):.2f} MB/s")
-        print(f"  Disk Write:      {metrics.get('disk_write_mb', 0):.2f} MB/s")
-        print(f"  Network In:      {metrics.get('net_in_mb', 0):.2f} MB/s")
-        print(f"  Network Out:     {metrics.get('net_out_mb', 0):.2f} MB/s")
-        print("=" * 70)
+        print(
+            f"  Disk: R={m.get('disk_read_mb', 0):.2f}MB/s W={m.get('disk_write_mb', 0):.2f}MB/s"
+        )
+        print(
+            f"  Network: In={m.get('net_in_mb', 0):.2f}MB/s Out={m.get('net_out_mb', 0):.2f}MB/s"
+        )
 
-    def process_metrics(self, data: dict):
-        """
-        Process monitoring metrics - override this for custom processing
-
-        Args:
-            data: Monitoring data dictionary
-        """
-        # Default implementation: just display
-        self.display_metrics(data)
-
-        # TODO: Add custom processing logic here
-        # - Store in database
-        # - Run analysis
-        # - Trigger alerts based on thresholds
-        # - Generate reports
-
-    def run(self):
-        """Main consumption loop"""
-        print("=" * 70)
-        print("Analysis Application Started")
-        print("=" * 70)
-        print(f"  Kafka: {self.bootstrap_servers}")
-        print(f"  Group ID: {self.group_id}")
-        print(f"  Topic: {KafkaTopics.MONITORING_DATA}")
-        print("  Waiting for monitoring data...")
-        print("  (Press Ctrl+C to stop)")
-        print("=" * 70)
+    def get_all_metrics(self, timeout: float = 5.0):
+        """Get all metrics from Kafka and display to stdout"""
+        start_time = time.time()
+        count = 0
 
         try:
-            message_count = 0
-            while True:
-                msg = self.consumer.poll(timeout=1.0)
-
-                if msg is None:
+            while time.time() - start_time < timeout:
+                msg = self.consumer.poll(timeout=0.5)
+                if msg is None or msg.error():
                     continue
 
-                if msg.error():
-                    print(f"✗ Consumer error: {msg.error()}")
-                    continue
-
-                # Deserialize and process message
                 try:
-                    message_count += 1
                     data = json.loads(msg.value().decode("utf-8"))
-                    print(f"\n[Message #{message_count}]")
-                    self.process_metrics(data)
+                    count += 1
+                    self.display_metrics(data)
+                except Exception:
+                    pass
 
-                except json.JSONDecodeError as e:
-                    print(f"✗ Error decoding JSON message: {e}")
-                except Exception as e:
-                    print(f"✗ Error processing message: {e}")
-
-        except KeyboardInterrupt:
-            print("\n\nShutting down analysis app...")
+            if count == 0:
+                print("⚠ No metrics found")
+            else:
+                print(f"\n✓ Retrieved {count} metric(s)")
         finally:
             self.consumer.close()
-            print("✓ Consumer closed")
 
 
 def main():
-    """Main entry point for running the analysis application"""
+    """Main entry point for CLI application"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Analysis Application")
+    parser = argparse.ArgumentParser(
+        description="Analysis Application CLI",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Get all metrics from Kafka and display to stdout
+  python3 run_analysis.py get-metrics
+
+  # Get metrics with custom timeout
+  python3 run_analysis.py get-metrics --timeout 10
+
+  # Use custom Kafka server
+  python3 run_analysis.py get-metrics --kafka localhost:9092
+        """,
+    )
+
     parser.add_argument(
         "--kafka",
         type=str,
         default="localhost:9092",
-        help="Kafka bootstrap servers",
+        help="Kafka bootstrap servers (default: localhost:9092)",
     )
     parser.add_argument(
         "--group-id",
         type=str,
         default="analysis-app-group",
-        help="Consumer group ID",
+        help="Consumer group ID (default: analysis-app-group)",
+    )
+
+    subparsers = parser.add_subparsers(
+        dest="command", required=True, help="Available commands"
+    )
+
+    # Subcommand: get-metrics
+    get_metrics_parser = subparsers.add_parser(
+        "get-metrics",
+        help="Get all metrics from Kafka and display to stdout",
+    )
+    get_metrics_parser.add_argument(
+        "--timeout",
+        type=float,
+        default=5.0,
+        help="Maximum time to wait for messages in seconds (default: 5.0)",
     )
 
     args = parser.parse_args()
 
-    # Create and run analysis app
     app = AnalysisApp(
         bootstrap_servers=args.kafka,
         group_id=args.group_id,
     )
 
-    app.run()
+    if args.command == "get-metrics":
+        app.get_all_metrics(timeout=args.timeout)
+    return 0
 
 
 if __name__ == "__main__":

@@ -1,46 +1,50 @@
 """
-gRPC Server - Receives monitoring data from agents and forwards to Kafka (with streaming)
+gRPC Server - Broker between Agents and Kafka
+- Receives metrics from agents via bidirectional streaming
+- Forwards metrics to Kafka
+- Consumes commands from Kafka
+- Forwards commands to agents via bidirectional streaming
 """
 
 import grpc
 from concurrent import futures
 import queue
 import threading
-import time
+import json
 from typing import Dict
+
+from confluent_kafka import Consumer
 
 from shared import monitoring_pb2
 from shared import monitoring_pb2_grpc
+from shared.config import KafkaTopics
 from grpc_server.kafka_producer import KafkaProducerService
 
 
 class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
     """gRPC service implementation for receiving monitoring data from agents"""
 
-    def __init__(self, kafka_producer: KafkaProducerService):
+    def __init__(
+        self, kafka_producer: KafkaProducerService, kafka_bootstrap_servers: str
+    ):
         """
         Initialize the monitoring service
 
         Args:
             kafka_producer: Kafka producer service for forwarding data
+            kafka_bootstrap_servers: Kafka bootstrap servers for command consumer
         """
         self.kafka_producer = kafka_producer
-        # Store command queues for each agent
+        self.kafka_bootstrap_servers = kafka_bootstrap_servers
         self.agent_command_queues: Dict[str, queue.Queue] = {}
-        print("✓ MonitoringServiceServicer initialized")
+        self._stop_command_consumer = threading.Event()
 
     def StreamMetrics(self, request_iterator, context):
         """
-        Bidirectional streaming: receive metrics from agent, send commands to agent
-
-        Args:
-            request_iterator: Iterator of MetricsRequest from agent
-            context: gRPC context
-
-        Yields:
-            Command for the agent
+        Bidirectional streaming: Agent sends metrics, Server sends commands
+        - Receives: stream MetricsRequest (periodic data from agent)
+        - Sends: stream Command (commands from Kafka/analysis app)
         """
-        print("\n🔵 StreamMetrics called!")
         agent_id = None
         command_queue = queue.Queue()
         received_metrics = queue.Queue()
@@ -51,14 +55,11 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
             nonlocal agent_id
             try:
                 for request in request_iterator:
-                    # Get agent ID from first request and register
                     if agent_id is None:
                         agent_id = request.agent_id
                         self.agent_command_queues[agent_id] = command_queue
-                        print(f"\n✓ Agent connected (streaming): {agent_id}")
-                        print("  Agent registered and ready to receive commands")
+                        print(f"✓ Agent connected: {agent_id}")
 
-                    # Queue metrics for processing
                     received_metrics.put(request)
             except Exception as e:
                 print(f"\n✗ Error in request processor: {e}")
@@ -70,118 +71,99 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
         request_thread.start()
 
         try:
-            # Main loop: process metrics and send commands independently
             while not stop_threads.is_set():
-                # Process any received metrics
+                # Process metrics from agent -> forward to Kafka
                 try:
                     request = received_metrics.get(timeout=0.1)
-                    timestamp = request.timestamp
 
-                    # Check if this is a keepalive (stopped agent)
-                    is_keepalive = request.metadata.get("keepalive") == "true"
-
-                    if not is_keepalive:
-                        print("\n[Metrics Received - Stream]")
-                        print(f"  Agent: {agent_id}")
-                        print(f"  CPU: {request.metrics.cpu_percent:.2f}%")
-                        print(f"  Memory: {request.metrics.memory_percent:.2f}%")
-
-                        # Send to Kafka (only real metrics, not keepalives)
-                        success = self.kafka_producer.send_monitoring_data(
-                            agent_id=agent_id,
-                            timestamp=timestamp,
-                            metrics={
-                                "cpu_percent": request.metrics.cpu_percent,
-                                "memory_percent": request.metrics.memory_percent,
-                                "memory_used_mb": request.metrics.memory_used_mb,
-                                "memory_total_mb": request.metrics.memory_total_mb,
-                                "disk_read_mb": request.metrics.disk_read_mb,
-                                "disk_write_mb": request.metrics.disk_write_mb,
-                                "net_in_mb": request.metrics.net_in_mb,
-                                "net_out_mb": request.metrics.net_out_mb,
-                            },
-                            metadata=dict(request.metadata),
-                        )
-
-                        if success:
-                            print("✓ Forwarded to Kafka topic: monitoring-data")
-                        else:
-                            print("✗ Failed to forward to Kafka")
-                    # else: Silent keepalive - just allows command delivery
+                    # Forward metrics to Kafka
+                    self.kafka_producer.send_monitoring_data(
+                        agent_id=agent_id,
+                        timestamp=request.timestamp,
+                        metrics={
+                            "cpu_percent": request.metrics.cpu_percent,
+                            "memory_percent": request.metrics.memory_percent,
+                            "memory_used_mb": request.metrics.memory_used_mb,
+                            "memory_total_mb": request.metrics.memory_total_mb,
+                            "disk_read_mb": request.metrics.disk_read_mb,
+                            "disk_write_mb": request.metrics.disk_write_mb,
+                            "net_in_mb": request.metrics.net_in_mb,
+                            "net_out_mb": request.metrics.net_out_mb,
+                        },
+                        metadata=dict(request.metadata),
+                    )
                 except queue.Empty:
                     pass
 
-                # Check for commands to send (independent of receiving metrics)
+                # Send commands from Kafka to agent
                 try:
                     command = command_queue.get_nowait()
-                    cmd_name = (
-                        "START" if command.type == monitoring_pb2.START else "STOP"
-                    )
-                    print(f"\n📤 Sending {cmd_name} command to agent {agent_id}")
                     yield command
                 except queue.Empty:
                     pass
 
-        except grpc.RpcError as e:
-            print(f"\n✗ Stream error for agent {agent_id}: {e}")
         except Exception as e:
-            print(f"\n✗ Unexpected error in StreamMetrics: {type(e).__name__}: {e}")
-            import traceback
-
-            traceback.print_exc()
+            print(f"✗ Stream error for agent {agent_id}: {e}")
         finally:
-            # Cleanup when agent disconnects
             stop_threads.set()
             if agent_id and agent_id in self.agent_command_queues:
                 del self.agent_command_queues[agent_id]
-                print(f"\n✓ Agent disconnected: {agent_id}")
+                print(f"✓ Agent disconnected: {agent_id}")
 
-    def SendCommand(self, request, context):
-        """
-        Send a command to an agent (called by external clients)
-
-        Args:
-            request: Command message
-            context: gRPC context
-
-        Returns:
-            CommandResponse indicating success or failure
-        """
-        agent_id = request.agent_id
-        command_type = request.type
-
-        success = self.send_command_to_agent(agent_id, command_type)
-
-        if success:
-            return monitoring_pb2.CommandResponse(
-                success=True, message=f"Command queued for agent {agent_id}"
-            )
-        else:
-            return monitoring_pb2.CommandResponse(
-                success=False, message=f"Agent {agent_id} not connected"
-            )
-
-    def send_command_to_agent(self, agent_id: str, command_type: int) -> bool:
-        """
-        Send a command to a specific agent
-
-        Args:
-            agent_id: Target agent ID
-            command_type: Type of command (START or STOP)
-
-        Returns:
-            True if command was queued, False if agent not connected
-        """
-        if agent_id in self.agent_command_queues:
-            # Create command
-            command = monitoring_pb2.Command(agent_id=agent_id, type=command_type)
-            self.agent_command_queues[agent_id].put(command)
-            cmd_name = "START" if command_type == monitoring_pb2.START else "STOP"
-            print(f"✓ Command queued for agent {agent_id}: {cmd_name}")
-            return True
-        else:
-            print(f"✗ Agent {agent_id} not connected")
+    def send_command_to_agent(
+        self, agent_id: str, command_type: int, parameters: dict = None
+    ) -> bool:
+        """Queue command to be sent to agent via bidirectional stream"""
+        if agent_id not in self.agent_command_queues:
             return False
+
+        command = monitoring_pb2.Command(agent_id=agent_id, type=command_type)
+        if parameters:
+            command.parameters.update(parameters)
+        self.agent_command_queues[agent_id].put(command)
+        return True
+
+    def start_command_consumer(self):
+        """Start Kafka consumer to receive commands from analysis app"""
+
+        def consume_commands():
+            consumer = Consumer(
+                {
+                    "bootstrap.servers": self.kafka_bootstrap_servers,
+                    "group.id": "grpc-server-command-consumer",
+                    "auto.offset.reset": "latest",
+                }
+            )
+            consumer.subscribe([KafkaTopics.COMMANDS])
+
+            while not self._stop_command_consumer.is_set():
+                msg = consumer.poll(timeout=1.0)
+                if msg is None:
+                    continue
+
+                if msg.error():
+                    # Ignore topic not found (will be created when producer writes)
+                    if hasattr(msg.error(), "code") and msg.error().code() == 3:
+                        continue
+                    continue
+
+                try:
+                    command_data = json.loads(msg.value().decode("utf-8"))
+                    agent_id = command_data.get("agent_id")
+                    command_type_str = command_data.get("type", "").upper()
+
+                    # Handle commands here when needed
+                    # Currently no commands are implemented
+                except Exception:
+                    pass
+
+            consumer.close()
+
+        threading.Thread(target=consume_commands, daemon=True).start()
+
+    def stop_command_consumer(self):
+        """Stop the command consumer"""
+        self._stop_command_consumer.set()
 
 
 # Global server instance to access from command sender
@@ -206,29 +188,25 @@ def serve(
 
     # Create gRPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    _server_servicer = MonitoringServiceServicer(kafka_producer)
+    _server_servicer = MonitoringServiceServicer(
+        kafka_producer, kafka_bootstrap_servers
+    )
     monitoring_pb2_grpc.add_MonitoringServiceServicer_to_server(
         _server_servicer, server
     )
     server.add_insecure_port(f"[::]:{port}")
 
-    print("=" * 60)
-    print("gRPC Server Starting (Streaming Mode)")
-    print("=" * 60)
-    print(f"  Port: {port}")
-    print(f"  Kafka: {kafka_bootstrap_servers}")
-    print("=" * 60)
-    print()
-
     server.start()
-    print("✓ gRPC Server is running...")
-    print("  Waiting for agent connections...")
-    print()
+    print(f"✓ gRPC Server running on port {port}")
+    print(f"✓ Kafka: {kafka_bootstrap_servers}")
+
+    _server_servicer.start_command_consumer()
 
     try:
         server.wait_for_termination()
     except KeyboardInterrupt:
         print("\n\nShutting down server...")
+        _server_servicer.stop_command_consumer()
         server.stop(0)
         kafka_producer.close()
 

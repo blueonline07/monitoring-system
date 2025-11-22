@@ -49,9 +49,8 @@ lab_ds/
 │   ├── config.py        # Kafka topics configuration
 │   └── monitoring_pb2*.py # Generated protobuf files
 ├── grpc_server/        # gRPC server + Kafka producer
-├── analysis_app/       # Kafka consumer + analysis
+├── analysis_app/       # Kafka consumer + analysis (auto-sends STOP commands)
 ├── mock_agent.py       # Mock agent (generates test data)
-├── send_command.py     # Send START/STOP commands to agents
 ├── run_agent.py        # ⭐ Run agent
 ├── run_server.py       # ⭐ Run server
 └── run_analysis.py     # ⭐ Run analysis app
@@ -77,8 +76,12 @@ python3 run_server.py \
 ```bash
 python3 run_analysis.py \
     --kafka localhost:9092 \
-    --group-id my-team
+    --group-id my-team \
+    --stop-after 10 \
+    --grpc-server localhost:50051
 ```
+
+**Note**: The analysis app automatically sends STOP commands to agents after collecting a specified number of logs (default: 10 logs per agent).
 
 ## 📊 Data Models
 
@@ -91,7 +94,7 @@ python3 run_analysis.py \
 
 ### Commands
 - **START** - Start metrics collection
-- **STOP** - Stop metrics collection
+- **STOP** - Stop metrics collection (automatically sent by consumer after collecting N logs)
 
 ### Kafka Topics
 - `monitoring-data` - Agent metrics → Analysis app (via gRPC server)
@@ -122,14 +125,11 @@ python3 run_analysis.py
 python3 run_agent.py --agent-id agent-001
 ```
 
-### Send Commands
-```bash
-# Send START command to agent
-python3 send_command.py --agent-id agent-001 --command start
-
-# Send STOP command to agent
-python3 send_command.py --agent-id agent-001 --command stop
-```
+### Automatic Command Sending
+The analysis app automatically sends STOP commands to agents after collecting a specified number of logs:
+- Default: 10 logs per agent
+- Configurable via `--stop-after` parameter
+- Commands are sent via gRPC to the server, which forwards them to agents
 
 ### Multiple Agents
 ```bash
