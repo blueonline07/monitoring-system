@@ -5,11 +5,6 @@ Analysis Application - Consumes and analyzes monitoring data from Kafka
 from confluent_kafka import Consumer
 import socket
 import json
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.kafka_schemas import KafkaTopics
 
@@ -60,7 +55,7 @@ class AnalysisApp:
         metadata = data.get("metadata", {})
 
         print("\n" + "=" * 70)
-        print(f"📊 MONITORING DATA RECEIVED")
+        print("📊 MONITORING DATA RECEIVED")
         print("=" * 70)
         print(f"  Agent ID:   {agent_id}")
         print(f"  Hostname:   {hostname}")

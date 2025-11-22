@@ -7,11 +7,6 @@ import json
 from datetime import datetime
 from typing import Optional
 from confluent_kafka import Producer
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared.kafka_schemas import KafkaTopics
 

@@ -4,11 +4,6 @@ gRPC Server - Receives monitoring data from agents and forwards to Kafka
 
 import grpc
 from concurrent import futures
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from shared import monitoring_pb2
 from shared import monitoring_pb2_grpc
@@ -44,7 +39,7 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
             hostname = request.hostname
             timestamp = request.timestamp
 
-            print(f"\n[Metrics Received]")
+            print("\n[Metrics Received]")
             print(f"  Agent: {agent_id}")
             print(f"  Hostname: {hostname}")
             print(f"  CPU: {request.metrics.cpu_percent:.2f}%")
@@ -73,13 +68,13 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
             success = self.kafka_producer.send_monitoring_data(metrics_data)
 
             if success:
-                print(f"✓ Forwarded to Kafka topic: monitoring-data")
+                print("✓ Forwarded to Kafka topic: monitoring-data")
                 return monitoring_pb2.MetricsResponse(
                     success=True,
                     message="Metrics received and forwarded to Kafka",
                 )
             else:
-                print(f"✗ Failed to forward to Kafka")
+                print("✗ Failed to forward to Kafka")
                 return monitoring_pb2.MetricsResponse(
                     success=False,
                     message="Failed to forward metrics to Kafka",
@@ -109,7 +104,7 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
             agent_id = request.agent_id
             hostname = request.hostname
 
-            print(f"\n[Agent Registered]")
+            print("\n[Agent Registered]")
             print(f"  Agent: {agent_id}")
             print(f"  Hostname: {hostname}")
 
@@ -125,13 +120,13 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
             success = self.kafka_producer.send_agent_status(agent_status)
 
             if success:
-                print(f"✓ Agent registration forwarded to Kafka")
+                print("✓ Agent registration forwarded to Kafka")
                 return monitoring_pb2.Ack(
                     success=True,
                     message="Agent registered successfully",
                 )
             else:
-                print(f"✗ Failed to forward registration to Kafka")
+                print("✗ Failed to forward registration to Kafka")
                 return monitoring_pb2.Ack(
                     success=False,
                     message="Failed to register agent",
@@ -159,9 +154,7 @@ def serve(
         kafka_bootstrap_servers: Kafka bootstrap servers
     """
     # Initialize Kafka producer
-    kafka_producer = KafkaProducerService(
-        bootstrap_servers=kafka_bootstrap_servers
-    )
+    kafka_producer = KafkaProducerService(bootstrap_servers=kafka_bootstrap_servers)
 
     # Create gRPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))

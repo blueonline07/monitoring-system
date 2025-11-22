@@ -6,13 +6,9 @@ import grpc
 import socket
 import time
 import random
+import os
 from datetime import datetime
 from typing import Optional
-import sys
-import os
-
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import generated gRPC code from shared module
 from shared import monitoring_pb2
@@ -147,7 +143,7 @@ class MonitorAgent:
             response = self.stub.SendMetrics(request)
 
             if response.success:
-                print(f"✓ Metrics sent successfully")
+                print("✓ Metrics sent successfully")
                 print(f"  CPU: {metrics.cpu_percent:.2f}%")
                 print(f"  Memory: {metrics.memory_percent:.2f}%")
                 print(f"  Response: {response.message}")
