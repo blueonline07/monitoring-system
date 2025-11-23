@@ -3,8 +3,7 @@
 import grpc
 import warnings
 
-from google.protobuf import empty_pb2 as google_dot_protobuf_dot_empty__pb2
-from shared import monitoring_pb2 as shared_dot_monitoring__pb2
+from . import monitoring_pb2 as monitoring__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -19,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in shared/monitoring_pb2_grpc.py depends on'
+        + ' but the generated code in monitoring_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -27,8 +26,7 @@ if _version_not_supported:
 
 
 class MonitoringServiceStub(object):
-    """Service definition for Monitor Agent -> gRPC Server communication
-    Unidirectional streaming: Agent sends periodic monitoring data
+    """Service definition for Monitor Agent <-> gRPC Server bidirectional communication
     """
 
     def __init__(self, channel):
@@ -37,20 +35,31 @@ class MonitoringServiceStub(object):
         Args:
             channel: A grpc.Channel.
         """
-        self.StreamMetrics = channel.stream_unary(
+        self.StreamMetrics = channel.stream_stream(
                 '/monitoring.MonitoringService/StreamMetrics',
-                request_serializer=shared_dot_monitoring__pb2.MetricsRequest.SerializeToString,
-                response_deserializer=google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+                request_serializer=monitoring__pb2.MetricsRequest.SerializeToString,
+                response_deserializer=monitoring__pb2.Command.FromString,
+                _registered_method=True)
+        self.SendCommand = channel.unary_unary(
+                '/monitoring.MonitoringService/SendCommand',
+                request_serializer=monitoring__pb2.Command.SerializeToString,
+                response_deserializer=monitoring__pb2.CommandResponse.FromString,
                 _registered_method=True)
 
 
 class MonitoringServiceServicer(object):
-    """Service definition for Monitor Agent -> gRPC Server communication
-    Unidirectional streaming: Agent sends periodic monitoring data
+    """Service definition for Monitor Agent <-> gRPC Server bidirectional communication
     """
 
     def StreamMetrics(self, request_iterator, context):
-        """Client streaming: Agent sends periodic metrics
+        """Bidirectional streaming: Agent sends metrics AND receives commands
+        """
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def SendCommand(self, request, context):
+        """Send command to a specific agent (from external clients/Kafka)
         """
         context.set_code(grpc.StatusCode.UNIMPLEMENTED)
         context.set_details('Method not implemented!')
@@ -59,10 +68,15 @@ class MonitoringServiceServicer(object):
 
 def add_MonitoringServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
-            'StreamMetrics': grpc.stream_unary_rpc_method_handler(
+            'StreamMetrics': grpc.stream_stream_rpc_method_handler(
                     servicer.StreamMetrics,
-                    request_deserializer=shared_dot_monitoring__pb2.MetricsRequest.FromString,
-                    response_serializer=google_dot_protobuf_dot_empty__pb2.Empty.SerializeToString,
+                    request_deserializer=monitoring__pb2.MetricsRequest.FromString,
+                    response_serializer=monitoring__pb2.Command.SerializeToString,
+            ),
+            'SendCommand': grpc.unary_unary_rpc_method_handler(
+                    servicer.SendCommand,
+                    request_deserializer=monitoring__pb2.Command.FromString,
+                    response_serializer=monitoring__pb2.CommandResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -73,8 +87,7 @@ def add_MonitoringServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class MonitoringService(object):
-    """Service definition for Monitor Agent -> gRPC Server communication
-    Unidirectional streaming: Agent sends periodic monitoring data
+    """Service definition for Monitor Agent <-> gRPC Server bidirectional communication
     """
 
     @staticmethod
@@ -88,12 +101,39 @@ class MonitoringService(object):
             wait_for_ready=None,
             timeout=None,
             metadata=None):
-        return grpc.experimental.stream_unary(
+        return grpc.experimental.stream_stream(
             request_iterator,
             target,
             '/monitoring.MonitoringService/StreamMetrics',
-            shared_dot_monitoring__pb2.MetricsRequest.SerializeToString,
-            google_dot_protobuf_dot_empty__pb2.Empty.FromString,
+            monitoring__pb2.MetricsRequest.SerializeToString,
+            monitoring__pb2.Command.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def SendCommand(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/monitoring.MonitoringService/SendCommand',
+            monitoring__pb2.Command.SerializeToString,
+            monitoring__pb2.CommandResponse.FromString,
             options,
             channel_credentials,
             insecure,

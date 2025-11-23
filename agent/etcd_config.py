@@ -110,7 +110,7 @@ class EtcdConfigManager:
                 "net in",
                 "net out",
             ],
-            "plugins": [],
+            "plugins": ["agent.plugins.deduplication.DeduplicationPlugin"],
         }
 
     def _watch_config_callback(self, watch_response):

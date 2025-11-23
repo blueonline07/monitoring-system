@@ -4,11 +4,13 @@ package monitoring;
 
 import "google/protobuf/empty.proto";
 
-// Service definition for Monitor Agent -> gRPC Server communication
-// Unidirectional streaming: Agent sends periodic monitoring data
+// Service definition for Monitor Agent <-> gRPC Server bidirectional communication
 service MonitoringService {
-    // Client streaming: Agent sends periodic metrics
-    rpc StreamMetrics(stream MetricsRequest) returns (google.protobuf.Empty);
+    // Bidirectional streaming: Agent sends metrics AND receives commands
+    rpc StreamMetrics(stream MetricsRequest) returns (stream Command);
+    
+    // Send command to a specific agent (from external clients/Kafka)
+    rpc SendCommand(Command) returns (CommandResponse);
 }
 
 // ============================================================================
@@ -31,6 +33,35 @@ message MetricsRequest {
     int64 timestamp = 2;  // Unix timestamp
     SystemMetrics metrics = 3;
     map<string, string> metadata = 4;
+}
+
+// ============================================================================
+// Command Messages
+// ============================================================================
+
+// Command types
+enum CommandType {
+    START = 0;           // Start collecting metrics
+    STOP = 1;            // Stop collecting metrics
+    UPDATE_CONFIG = 2;   // Update configuration
+    RESTART = 3;         // Restart agent
+    STATUS = 4;          // Get agent status
+}
+
+// Command for agent
+message Command {
+    string agent_id = 1;           // Target agent ID
+    CommandType type = 2;          // Command type
+    map<string, string> params = 3; // Optional parameters
+    int64 timestamp = 4;           // Command timestamp
+}
+
+// Response to command
+message CommandResponse {
+    bool success = 1;              // Whether command was executed successfully
+    string message = 2;            // Response message
+    string agent_id = 3;           // Agent that executed the command
+    int64 timestamp = 4;           // Response timestamp
 }
 
 
