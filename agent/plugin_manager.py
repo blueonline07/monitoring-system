@@ -96,6 +96,31 @@ class PluginManager:
 
             return result
 
+    def get_stats(self) -> Dict[str, int]:
+        """
+        Get aggregated statistics from all plugins
+        
+        Returns:
+            Dictionary with 'processed', 'passed', 'dropped' counts
+        """
+        with self._plugins_lock:
+            total_processed = 0
+            total_passed = 0
+            total_dropped = 0
+            
+            for plugin in self.plugins:
+                if hasattr(plugin, 'stats'):
+                    stats = plugin.stats
+                    total_processed += stats.get('processed', 0)
+                    total_passed += stats.get('passed', 0)
+                    total_dropped += stats.get('dropped', 0)
+            
+            return {
+                'processed': total_processed,
+                'passed': total_passed,
+                'dropped': total_dropped
+            }
+
     def finalize_all(self):
         """Finalize all loaded plugins (thread-safe)"""
         with self._plugins_lock:

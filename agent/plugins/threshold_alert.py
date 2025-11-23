@@ -11,6 +11,7 @@ class ThresholdAlertPlugin(BasePlugin):
     
     def __init__(self):
         """Initialize threshold alert plugin"""
+        super().__init__()  # Initialize stats tracking
         self.thresholds = {
             "cpu_percent": 80.0,
             "memory_percent": 85.0,
@@ -55,7 +56,7 @@ class ThresholdAlertPlugin(BasePlugin):
                 return f"⚠️  ALERT: {metric_name}={value:.2f} exceeds threshold {threshold:.2f}"
         return None
     
-    def run(self, metrics_request: monitoring_pb2.MetricsRequest) -> Optional[monitoring_pb2.MetricsRequest]:
+    def process(self, metrics_request: monitoring_pb2.MetricsRequest) -> Optional[monitoring_pb2.MetricsRequest]:
         """
         Process metrics request and check for threshold violations
         

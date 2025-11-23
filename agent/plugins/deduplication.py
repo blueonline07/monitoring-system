@@ -11,6 +11,7 @@ class DeduplicationPlugin(BasePlugin):
     
     def __init__(self):
         """Initialize deduplication plugin"""
+        super().__init__()  # Initialize stats tracking
         self.last_metrics = None
         self.dropped_count = 0
         self.sent_count = 0
@@ -39,7 +40,7 @@ class DeduplicationPlugin(BasePlugin):
         """Check if two metric dictionaries are equal"""
         return metrics1 == metrics2
     
-    def run(self, metrics_request: monitoring_pb2.MetricsRequest) -> Optional[monitoring_pb2.MetricsRequest]:
+    def process(self, metrics_request: monitoring_pb2.MetricsRequest) -> Optional[monitoring_pb2.MetricsRequest]:
         """
         Process metrics request - drop if identical to previous
         

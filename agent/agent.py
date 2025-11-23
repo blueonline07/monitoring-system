@@ -224,6 +224,9 @@ class MonitoringAgent:
         """
         iteration = 0
         was_paused = False  # Track pause state to avoid repeated messages
+        total_processed = 0
+        total_sent = 0
+        total_dropped = 0
         
         while self.running:
             # Only collect and send if collecting is enabled
@@ -240,29 +243,33 @@ class MonitoringAgent:
 
                 # Process through plugins
                 processed_request = self.plugin_manager.process_metrics(metrics_request)
+                
+                # Track metrics at agent level (not plugin level)
+                total_processed += 1
 
                 # Only yield if not dropped by plugins
                 if processed_request is not None:
+                    total_sent += 1
                     print(
                         f"✅ [SENT] cpu={metrics['cpu_percent']:.1f}%, mem={metrics['memory_percent']:.1f}%"
                     )
                     yield processed_request
                 else:
+                    total_dropped += 1
                     print(
                         f"🔴 [DROPPED] cpu={metrics['cpu_percent']:.1f}%, mem={metrics['memory_percent']:.1f}%"
                     )
 
-                # Show plugin stats every 10 iterations (every ~50 seconds with 5s interval)
+                # Show stats every 10 iterations (every ~50 seconds with 5s interval)
                 if iteration % 10 == 0:
-                    stats = self.plugin_manager.get_stats()
                     reduction = (
-                        (stats["dropped"] / stats["processed"] * 100)
-                        if stats["processed"] > 0
+                        (total_dropped / total_processed * 100)
+                        if total_processed > 0
                         else 0
                     )
                     print(
-                        f"\n📊 [PLUGIN STATS] Processed: {stats['processed']}, "
-                        f"Sent: {stats['passed']}, Dropped: {stats['dropped']} "
+                        f"\n📊 [PLUGIN STATS] Processed: {total_processed}, "
+                        f"Sent: {total_sent}, Dropped: {total_dropped} "
                         f"({reduction:.1f}% reduction)\n"
                     )
             else:

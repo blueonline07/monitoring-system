@@ -11,6 +11,7 @@ class FilterPlugin(BasePlugin):
     
     def __init__(self):
         """Initialize filter plugin"""
+        super().__init__()  # Initialize stats tracking
         self.min_cpu = 0.0  # Only send if CPU >= this value
         self.min_memory = 0.0  # Only send if memory >= this value
         self.send_idle = True  # Whether to send metrics when system is idle
@@ -58,7 +59,7 @@ class FilterPlugin(BasePlugin):
             metrics.net_out_mb < 1.0
         )
     
-    def run(self, metrics_request: monitoring_pb2.MetricsRequest) -> Optional[monitoring_pb2.MetricsRequest]:
+    def process(self, metrics_request: monitoring_pb2.MetricsRequest) -> Optional[monitoring_pb2.MetricsRequest]:
         """
         Process metrics request and filter based on conditions
         

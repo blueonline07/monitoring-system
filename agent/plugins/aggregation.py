@@ -12,6 +12,7 @@ class AggregationPlugin(BasePlugin):
     
     def __init__(self):
         """Initialize aggregation plugin"""
+        super().__init__()  # Initialize stats tracking
         self.window_size = 5  # Number of samples to aggregate
         self.history: List[Dict[str, float]] = []
         self.aggregation_count = 0
@@ -57,7 +58,7 @@ class AggregationPlugin(BasePlugin):
         
         return aggregated
     
-    def run(self, metrics_request: monitoring_pb2.MetricsRequest) -> Optional[monitoring_pb2.MetricsRequest]:
+    def process(self, metrics_request: monitoring_pb2.MetricsRequest) -> Optional[monitoring_pb2.MetricsRequest]:
         """
         Process metrics request and aggregate over time window
         
