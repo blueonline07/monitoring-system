@@ -46,6 +46,8 @@ class AnalysisApp:
     def display_metrics(self, data: dict):
         """Display metrics to stdout"""
         m = data.get("metrics", {})
+        metadata = data.get("metadata", {})
+        
         print(f"\n[{data.get('agent_id', 'unknown')}] {data.get('timestamp', '')}")
         print(
             f"  CPU: {m.get('cpu_percent', 0):.2f}% | Memory: {m.get('memory_percent', 0):.2f}%"
@@ -56,6 +58,19 @@ class AnalysisApp:
         print(
             f"  Network: In={m.get('net_in_mb', 0):.2f}MB/s Out={m.get('net_out_mb', 0):.2f}MB/s"
         )
+        
+        # Display alerts if present
+        if "alerts" in metadata:
+            alert_count = metadata.get("alert_count", "?")
+            print(f"\n  🚨 ALERTS ({alert_count}):")
+            for alert in metadata["alerts"].split("; "):
+                print(f"     {alert}")
+        
+        # Display other metadata if present
+        if "deduplication" in metadata:
+            print(f"  🔄 Deduplication: {metadata['deduplication']}")
+        if "filtered_by_plugin" in metadata:
+            print(f"  🔴 Filtered: {metadata['filtered_by_plugin']}")
 
     def get_all_metrics(self, timeout: float = 5.0):
         """Get all metrics from Kafka and display to stdout"""
