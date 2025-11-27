@@ -105,7 +105,23 @@ class EtcdConfigManager:
                 "net in",
                 "net out",
             ],
-            "plugins": [],
+            "plugins": [
+                "agent.plugins.deduplication.DeduplicationPlugin",
+                "agent.plugins.threshold_alert.ThresholdAlertPlugin",
+                "agent.plugins.filter.FilterPlugin",
+                "agent.plugins.aggregation.AggregationPlugin",  # Pass-through with aggregation metadata
+            ],
+            "thresholds": {
+                "cpu_percent": 80.0,
+                "memory_percent": 85.0,
+                "disk_read_mb": 100.0,
+                "disk_write_mb": 100.0,
+                "net_in_mb": 50.0,
+                "net_out_mb": 50.0,
+            },
+            "min_cpu": 5.0,
+            "min_memory": 5.0,
+            "window_size": 5
         }
 
     def _watch_config_callback(self, watch_response):
