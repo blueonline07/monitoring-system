@@ -1,6 +1,7 @@
 """
 Threshold Alert Plugin - alerts when metrics exceed configured thresholds
 """
+
 from typing import Dict, Any, Optional
 from shared import monitoring_pb2
 from agent.plugins.base import BasePlugin
@@ -27,7 +28,7 @@ class ThresholdAlertPlugin(BasePlugin):
     def initialize(self, config: Optional[Dict[str, Any]] = None):
         """
         Initialize plugin with optional configuration
-        
+
         Args:
             config: Configuration dict that may contain 'thresholds' key
         """
@@ -42,11 +43,11 @@ class ThresholdAlertPlugin(BasePlugin):
     def _check_threshold(self, metric_name: str, value: float) -> Optional[str]:
         """
         Check if a metric exceeds its threshold
-        
+
         Args:
             metric_name: Name of the metric to check
             value: Current value of the metric
-            
+
         Returns:
             Alert message if threshold exceeded, None otherwise
         """
@@ -56,13 +57,15 @@ class ThresholdAlertPlugin(BasePlugin):
                 return f"⚠️  ALERT: {metric_name}={value:.2f} exceeds threshold {threshold:.2f}"
         return None
 
-    def process(self, metrics_request: monitoring_pb2.MetricsRequest) -> Optional[monitoring_pb2.MetricsRequest]:
+    def process(
+        self, metrics_request: monitoring_pb2.MetricsRequest
+    ) -> Optional[monitoring_pb2.MetricsRequest]:
         """
         Process metrics request and check for threshold violations
-        
+
         Args:
             metrics_request: The metrics request to process
-            
+
         Returns:
             The same MetricsRequest (always passes through, adds alerts to metadata)
         """
@@ -99,12 +102,14 @@ class ThresholdAlertPlugin(BasePlugin):
 
     def finalize(self):
         """Finalize plugin and print statistics"""
-        alert_rate = (self.alert_count / self.check_count * 100) if self.check_count > 0 else 0
-        print(f"[ThresholdAlertPlugin] finalized")
+        alert_rate = (
+            (self.alert_count / self.check_count * 100) if self.check_count > 0 else 0
+        )
+        print("[ThresholdAlertPlugin] finalized")
         print(f"  Total checks: {self.check_count}")
         print(f"  Total alerts: {self.alert_count}")
         print(f"  Alert rate: {alert_rate:.1f}%")
         if self.alerts:
-            print(f"  Recent alerts:")
+            print("  Recent alerts:")
             for alert in self.alerts[-5:]:  # Show last 5 alerts
                 print(f"    {alert}")

@@ -39,9 +39,7 @@ def setup_config(
         ]
 
     if plugins is None:
-        plugins = [
-            "agent.plugins.deduplication.DeduplicationPlugin",
-        ]
+        plugins = []
 
     config_key = f"/monitor/config/{hostname}"
     config = {

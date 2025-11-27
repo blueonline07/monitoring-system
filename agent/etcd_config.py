@@ -63,9 +63,31 @@ class EtcdConfigManager:
         with self._config_lock:
             self._config = new_config.copy()
 
-    def load_initial_config(self) -> Dict[str, Any]:
+    def store_config(self, config: Dict[str, Any]) -> bool:
+        """
+        Store configuration to etcd
+
+        Args:
+            config: Configuration dictionary to store
+
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            self.etcd.put(self.config_key, json.dumps(config, indent=2))
+            self._update_config(config)
+            print(f"Stored config to etcd: {self.config_key}")
+            return True
+        except Exception as e:
+            print(f"Error storing config to etcd: {e}")
+            return False
+
+    def load_initial_config(self, store_defaults: bool = True) -> Dict[str, Any]:
         """
         Load initial configuration from etcd
+
+        Args:
+            store_defaults: If True, store default config to etcd when not found
 
         Returns:
             Configuration dictionary
@@ -81,11 +103,20 @@ class EtcdConfigManager:
                 print(f"No config found at {self.config_key}, using defaults")
                 default_config = self._get_default_config()
                 self._update_config(default_config)
+                # Store default config to etcd if requested
+                if store_defaults:
+                    self.store_config(default_config)
                 return default_config
         except Exception as e:
             print(f"Error loading config from etcd: {e}")
             default_config = self._get_default_config()
             self._update_config(default_config)
+            # Store default config to etcd if requested (even on error)
+            if store_defaults:
+                try:
+                    self.store_config(default_config)
+                except Exception as store_error:
+                    print(f"Error storing default config to etcd: {store_error}")
             return default_config
 
     def _get_default_config(self) -> Dict[str, Any]:

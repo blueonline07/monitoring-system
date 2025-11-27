@@ -20,10 +20,13 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 # Add to ~/.zshrc or ~/.bashrc for persistence
 ```
 
-### 3. Set Up etcd Configuration
+### 3. Set Up etcd Configuration (Optional)
 ```bash
-# Set up configuration for an agent
-python setup_etcd_config.py --agent-id agent-001 --interval 5
+# Option 1: Manually set up configuration for an agent
+python setup_etcd_config.py --hostname agent-001 --interval 5
+
+# Option 2: Let the agent auto-initialize with defaults
+# The agent will automatically store default configuration to etcd if none exists
 ```
 
 ### 4. Run the System
@@ -43,13 +46,14 @@ python3 run_analysis.py get-metrics
 # python3 run_analysis.py get-metrics
 
 # Terminal 3: Start Agent
-python3 run_agent.py --agent-id agent-001 --etcd-host localhost --etcd-port 2379
+python3 run_agent.py --hostname agent-001 --etcd-host localhost --etcd-port 2379
 # Or with environment variables:
 # export GRPC_SERVER_HOST=localhost
 # export GRPC_SERVER_PORT=50051
 # export ETCD_HOST=localhost
 # export ETCD_PORT=2379
-# python3 run_agent.py --agent-id agent-001
+# python3 run_agent.py --hostname agent-001
+# Note: Agent will auto-create default config in etcd if none exists
 ```
 
 ## 🏗️ Architecture
@@ -109,11 +113,11 @@ lab_ds/
 ### Agent Options
 ```bash
 python3 run_agent.py \
-    --agent-id agent-001 \
+    --hostname agent-001 \
     --server localhost:50051 \
     --etcd-host localhost \
     --etcd-port 2379 \
-    --config-key /monitor/config/agent-001  # Optional, defaults to /monitor/config/<agent-id>
+    --config-key /monitor/config/agent-001  # Optional, defaults to /monitor/config/<hostname>
 ```
 
 **Or use environment variables:**
@@ -122,8 +126,10 @@ export GRPC_SERVER_HOST=localhost
 export GRPC_SERVER_PORT=50051
 export ETCD_HOST=localhost
 export ETCD_PORT=2379
-python3 run_agent.py --agent-id agent-001
+python3 run_agent.py --hostname agent-001
 ```
+
+**Note:** If no configuration exists in etcd for the agent, it will automatically initialize with default values and store them to etcd.
 
 ### Server Options
 ```bash
@@ -140,8 +146,7 @@ python3 run_server.py
 ### Analysis App Options
 ```bash
 python3 run_analysis.py get-metrics \
-    --kafka localhost:9092 \
-    --group-id my-team \
+    --hostname <hostname>
     --timeout 10
 ```
 
@@ -152,19 +157,27 @@ python3 run_analysis.py get-metrics --group-id my-team --timeout 10
 ```
 
 ### Setting up etcd Configuration
+
+**Option 1: Manual Setup (Recommended for production)**
 ```bash
 python setup_etcd_config.py \
-    --agent-id agent-001 \
+    --hostname <hostname> \
     --interval 5 \
     --metrics cpu memory "disk read" "disk write" "net in" "net out" \
     --plugins agent.plugins.deduplication.DeduplicationPlugin
+```
+
+**Option 2: Auto-initialization (Agent creates defaults automatically)**
+```bash
+# Just start the agent - it will create default config in etcd if none exists
+python3 run_agent.py --hostname agent-001
 ```
 
 **Or use environment variables:**
 ```bash
 export ETCD_HOST=localhost
 export ETCD_PORT=2379
-python setup_etcd_config.py --agent-id agent-001 --interval 5
+python setup_etcd_config.py --hostname agent-001 --interval 5
 ```
 
 ## 🔌 Plugin Architecture
@@ -210,7 +223,7 @@ class MyPlugin(BasePlugin):
 
 ### etcd Configuration Format
 
-Configuration is stored in etcd at `/monitor/config/<agent-id>`:
+Configuration is stored in etcd at `/monitor/config/<hostname>`:
 
 ```json
 {
@@ -229,6 +242,30 @@ Configuration is stored in etcd at `/monitor/config/<agent-id>`:
 }
 ```
 
+### Automatic Configuration Initialization
+
+When an agent starts, the `EtcdConfigManager` automatically:
+1. **Checks for existing configuration** in etcd at `/monitor/config/<hostname>`
+2. **If config exists**: Loads and uses it
+3. **If config doesn't exist**: 
+   - Uses default configuration values
+   - **Automatically stores the default config to etcd** (so it's visible and can be modified later)
+
+This means:
+- ✅ You can start agents without pre-configuring etcd
+- ✅ Default configs are automatically persisted to etcd
+- ✅ You can modify the auto-created config later via `setup_etcd_config.py` or `etcdctl`
+- ✅ The agent's `store_config()` method can be used programmatically to update config
+
+**Default Configuration Values:**
+- `interval`: 5 seconds
+- `metrics`: ["cpu", "memory", "disk read", "disk write", "net in", "net out"]
+- `plugins`: [] (empty by default)
+- `thresholds`: Predefined thresholds for alerts
+- `min_cpu`: 5.0%
+- `min_memory`: 5.0%
+- `window_size`: 5
+
 ### Dynamic Configuration Updates
 
 Configuration changes in etcd are automatically detected and applied:
@@ -238,13 +275,23 @@ Configuration changes in etcd are automatically detected and applied:
 
 ### Setting Configuration
 
+**Automatic Configuration Initialization:**
+When an agent starts, it automatically checks for configuration in etcd. If no configuration exists, the agent will:
+- Use default configuration values
+- **Automatically store the default configuration to etcd** (so it's visible and can be modified later)
+
+This means you can start an agent without pre-configuring etcd, and it will initialize itself with sensible defaults.
+
+**Manual Configuration Setup:**
 ```bash
 # Using the setup script
-python setup_etcd_config.py --agent-id agent-001 --interval 10
+python setup_etcd_config.py --hostname agent-001 --interval 10
 
 # Or directly with etcdctl (if etcd is running in Docker)
 docker exec -it etcd etcdctl put /monitor/config/agent-001 '{"interval": 10, "metrics": ["cpu", "memory"], "plugins": []}'
 ```
+
+**Note:** The agent's `EtcdConfigManager` now includes a `store_config()` method that can be used to programmatically store configuration to etcd.
 
 ## 📊 Data Models
 
@@ -304,7 +351,7 @@ export ETCD_PORT=2379
 
 # Run services (they will use the environment variables)
 python3 run_server.py
-python3 run_agent.py --agent-id agent-001
+python3 run_agent.py --hostname agent-001
 python3 run_analysis.py get-metrics
 ```
 
@@ -320,28 +367,33 @@ python3 run_server.py
 # Terminal 2: Start Analysis App
 python3 run_analysis.py get-metrics
 
-# Terminal 3: Set up and start agent
-python setup_etcd_config.py --agent-id agent-001
-python3 run_agent.py --agent-id agent-001
+# Terminal 3: Start agent (config will be auto-created if missing)
+python3 run_agent.py --hostname agent-001
+# Or manually set up config first:
+# python setup_etcd_config.py --hostname agent-001
+# python3 run_agent.py --hostname agent-001
 ```
 
 ### Multiple Agents
 ```bash
-# Set up configurations
-python setup_etcd_config.py --agent-id agent-001 --interval 5
-python setup_etcd_config.py --agent-id agent-002 --interval 10
-python setup_etcd_config.py --agent-id agent-003 --interval 15
+# Option 1: Let agents auto-initialize with defaults
+python3 run_agent.py --hostname agent-001 &
+python3 run_agent.py --hostname agent-002 &
+python3 run_agent.py --hostname agent-003 &
 
-# Run multiple agents
-python3 run_agent.py --agent-id agent-001 &
-python3 run_agent.py --agent-id agent-002 &
-python3 run_agent.py --agent-id agent-003 &
+# Option 2: Manually set up configurations first
+python setup_etcd_config.py --hostname agent-001 --interval 5
+python setup_etcd_config.py --hostname agent-002 --interval 10
+python setup_etcd_config.py --hostname agent-003 --interval 15
+python3 run_agent.py --hostname agent-001 &
+python3 run_agent.py --hostname agent-002 &
+python3 run_agent.py --hostname agent-003 &
 ```
 
 ### Dynamic Configuration Update
 ```bash
 # Update configuration while agent is running
-python setup_etcd_config.py --agent-id agent-001 --interval 10 --metrics cpu memory
+python setup_etcd_config.py --hostname agent-001 --interval 10 --metrics cpu memory
 
 # Agent will automatically detect and apply the change
 ```
@@ -350,7 +402,7 @@ python setup_etcd_config.py --agent-id agent-001 --interval 10 --metrics cpu mem
 ```bash
 # Add custom plugin to configuration
 python setup_etcd_config.py \
-    --agent-id agent-001 \
+    --hostname agent-001 \
     --plugins agent.plugins.deduplication.DeduplicationPlugin agent.plugins.my_plugin.MyPlugin
 ```
 
@@ -423,7 +475,7 @@ export PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python
 
 ### Configuration Not Updating
 - Verify etcd watch is active (check agent logs)
-- Ensure configuration key matches agent-id
+- Ensure configuration key matches hostname (default: `/monitor/config/<hostname>`)
 - Check etcd connection
 
 ---
