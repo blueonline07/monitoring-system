@@ -3,13 +3,13 @@
 Entry point for running the monitoring agent
 """
 import argparse
+import socket
 from shared.config import Config
 from agent.agent import MonitoringAgent
 
 
 def main():
     parser = argparse.ArgumentParser(description="Monitoring Agent")
-    parser.add_argument("--agent-id", type=str, default="agent-001", help="Agent ID")
     
     # Get defaults from environment variables
     grpc_server_host = Config.HOST
@@ -42,7 +42,7 @@ def main():
 
     # Create and run agent with etcd configuration
     agent = MonitoringAgent(
-        agent_id=args.agent_id,
+        hostname=socket.gethostname(),
         server_address=args.server,
         etcd_host=args.etcd_host,
         etcd_port=args.etcd_port,

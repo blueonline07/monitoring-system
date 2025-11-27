@@ -2,11 +2,11 @@
 Monitoring Agent - Modular architecture with collect, grpc, and plugins
 """
 
-import os
 import time
 import threading
+import socket
 from typing import Dict, Any, Optional, Iterator
-from shared import monitoring_pb2
+from shared import monitoring_pb2, Config
 
 from agent.collect import MetricCollector
 from agent.grpc import GrpcClient
@@ -19,7 +19,7 @@ class MonitoringAgent:
 
     def __init__(
         self,
-        agent_id: str,
+        hostname: str,
         server_address: str,
         etcd_host: str = None,
         etcd_port: int = None,
@@ -29,24 +29,19 @@ class MonitoringAgent:
         Initialize monitoring agent
 
         Args:
-            agent_id: Unique identifier for this agent
+            hostname: Unique identifier for this agent
             server_address: Address of the gRPC server
             etcd_host: etcd server hostname (defaults to ETCD_HOST env var or localhost)
             etcd_port: etcd server port (defaults to ETCD_PORT env var or 2379)
-            config_key: Optional custom config key (defaults to /monitor/config/<agent_id>)
+            config_key: Optional custom config key (defaults to /monitor/config/<hostname>)
         """
-        if etcd_host is None:
-            etcd_host = os.getenv("ETCD_HOST", "localhost")
-        if etcd_port is None:
-            etcd_port = int(os.getenv("ETCD_PORT", "2379"))
-        self.agent_id = agent_id
         self.server_address = server_address
-
+        self.hostname = hostname
         # Initialize etcd config manager
         self.etcd_config = EtcdConfigManager(
-            agent_id=agent_id,
-            etcd_host=etcd_host,
-            etcd_port=etcd_port,
+            hostname=socket.gethostname(),
+            etcd_host=Config.ETCD_HOST,
+            etcd_port=Config.ETCD_PORT,
             config_key=config_key,
         )
 
@@ -59,7 +54,7 @@ class MonitoringAgent:
         self.active_metrics = initial_config.get("metrics", [])
 
         # Initialize modules with initial config
-        self.collector = MetricCollector(agent_id, self.active_metrics)
+        self.collector = MetricCollector(hostname, self.active_metrics)
         self.grpc_client = GrpcClient(server_address)
         self.plugin_manager = PluginManager(initial_config)
 
@@ -83,7 +78,7 @@ class MonitoringAgent:
         Args:
             new_config: New configuration dictionary
         """
-        print(f"🔄 Applying config update for agent {self.agent_id}...")
+        print(f"🔄 Applying config update for agent {self.hostname}...")
 
         # Update interval
         new_interval = new_config.get("interval", 5)
@@ -103,7 +98,7 @@ class MonitoringAgent:
 
     def initialize(self):
         """Initialize agent and all modules"""
-        print(f"Initializing agent {self.agent_id}...")
+        print(f"Initializing agent {self.hostname}...")
 
         # Load plugins with initial config
         initial_config = self.etcd_config.get_config()
@@ -133,7 +128,7 @@ class MonitoringAgent:
 
         self.running = True
         self._config_monitor_thread.start()
-        print(f"✓ Agent {self.agent_id} initialized")
+        print(f"✓ Agent {self.hostname} initialized")
 
     def metrics_generator(self) -> Iterator[monitoring_pb2.MetricsRequest]:
         """
@@ -181,4 +176,4 @@ class MonitoringAgent:
         # Close etcd connection
         self.etcd_config.close()
 
-        print(f"✓ Agent {self.agent_id} finalized")
+        print(f"✓ Agent {self.hostname} finalized")

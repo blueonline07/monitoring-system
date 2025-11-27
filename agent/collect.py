@@ -3,11 +3,18 @@ Collect module - handles metric collection from localhost
 """
 
 import socket
-import random
 import threading
+import time
 from typing import Dict, Any, List
 from datetime import datetime
 from shared import monitoring_pb2
+
+try:
+    import psutil
+except ImportError:
+    raise ImportError(
+        "psutil is required for metric collection. Install it with: pip install psutil"
+    )
 
 
 class MetricCollector:
@@ -21,10 +28,13 @@ class MetricCollector:
             agent_id: Unique identifier for this agent
             active_metrics: List of metric names to collect (supports both "disk read" and "disk_read" formats)
         """
-        self.agent_id = agent_id
-        self.hostname = socket.gethostname()
         self._active_metrics_lock = threading.Lock()
         self.active_metrics = active_metrics
+        
+        # Initialize baseline measurements for rate-based metrics
+        self._last_disk_io = psutil.disk_io_counters()
+        self._last_net_io = psutil.net_io_counters()
+        self._last_measurement_time = time.time()
 
     def update_metrics(self, new_metrics: List[str]):
         """
@@ -61,35 +71,75 @@ class MetricCollector:
         Returns:
             Dictionary containing collected metrics
         """
+        current_time = time.time()
+        time_delta = current_time - self._last_measurement_time
+        
+        # Collect CPU metrics
+        cpu_percent = 0.0
+        if self._is_metric_active("cpu"):
+            cpu_percent = psutil.cpu_percent(interval=0.1)
+        
+        # Collect memory metrics
+        memory_percent = 0.0
+        memory_used_mb = 0.0
+        if self._is_metric_active("memory"):
+            mem = psutil.virtual_memory()
+            memory_percent = mem.percent
+            memory_used_mb = mem.used / (1024 * 1024)  # Convert to MB
+        
+        memory_total_mb = psutil.virtual_memory().total / (1024 * 1024)
+        
+        # Collect disk I/O metrics (rate per second)
+        disk_read_mb = 0.0
+        disk_write_mb = 0.0
+        if self._is_metric_active("disk_read") or self._is_metric_active("disk_write"):
+            try:
+                current_disk_io = psutil.disk_io_counters()
+                if current_disk_io and self._last_disk_io and time_delta > 0:
+                    if self._is_metric_active("disk_read"):
+                        read_bytes = current_disk_io.read_bytes - self._last_disk_io.read_bytes
+                        disk_read_mb = (read_bytes / (1024 * 1024)) / time_delta
+                    
+                    if self._is_metric_active("disk_write"):
+                        write_bytes = current_disk_io.write_bytes - self._last_disk_io.write_bytes
+                        disk_write_mb = (write_bytes / (1024 * 1024)) / time_delta
+                    
+                    self._last_disk_io = current_disk_io
+            except Exception as e:
+                # Handle cases where disk_io_counters might not be available
+                pass
+        
+        # Collect network I/O metrics (rate per second)
+        net_in_mb = 0.0
+        net_out_mb = 0.0
+        if self._is_metric_active("net_in") or self._is_metric_active("net_out"):
+            try:
+                current_net_io = psutil.net_io_counters()
+                if current_net_io and self._last_net_io and time_delta > 0:
+                    if self._is_metric_active("net_in"):
+                        recv_bytes = current_net_io.bytes_recv - self._last_net_io.bytes_recv
+                        net_in_mb = (recv_bytes / (1024 * 1024)) / time_delta
+                    
+                    if self._is_metric_active("net_out"):
+                        sent_bytes = current_net_io.bytes_sent - self._last_net_io.bytes_sent
+                        net_out_mb = (sent_bytes / (1024 * 1024)) / time_delta
+                    
+                    self._last_net_io = current_net_io
+            except Exception as e:
+                # Handle cases where net_io_counters might not be available
+                pass
+        
+        self._last_measurement_time = current_time
+        
         all_metrics = {
-            "cpu_percent": (
-                random.uniform(20.0, 80.0) if self._is_metric_active("cpu") else 0.0
-            ),
-            "memory_percent": (
-                random.uniform(40.0, 90.0) if self._is_metric_active("memory") else 0.0
-            ),
-            "memory_used_mb": (
-                random.uniform(2000.0, 7000.0)
-                if self._is_metric_active("memory")
-                else 0.0
-            ),
-            "memory_total_mb": 8192.0,
-            "disk_read_mb": (
-                random.uniform(5.0, 50.0)
-                if self._is_metric_active("disk_read")
-                else 0.0
-            ),
-            "disk_write_mb": (
-                random.uniform(2.0, 30.0)
-                if self._is_metric_active("disk_write")
-                else 0.0
-            ),
-            "net_in_mb": (
-                random.uniform(1.0, 20.0) if self._is_metric_active("net_in") else 0.0
-            ),
-            "net_out_mb": (
-                random.uniform(0.5, 15.0) if self._is_metric_active("net_out") else 0.0
-            ),
+            "cpu_percent": cpu_percent,
+            "memory_percent": memory_percent,
+            "memory_used_mb": memory_used_mb,
+            "memory_total_mb": memory_total_mb,
+            "disk_read_mb": disk_read_mb,
+            "disk_write_mb": disk_write_mb,
+            "net_in_mb": net_in_mb,
+            "net_out_mb": net_out_mb,
         }
 
         return all_metrics
@@ -107,7 +157,7 @@ class MetricCollector:
             MetricsRequest protobuf message
         """
         return monitoring_pb2.MetricsRequest(
-            agent_id=self.agent_id,
+            hostname=socket.gethostname(),
             timestamp=int(datetime.now().timestamp()),
             metrics=monitoring_pb2.SystemMetrics(
                 cpu_percent=metrics["cpu_percent"],

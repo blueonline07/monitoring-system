@@ -5,7 +5,6 @@ gRPC Server - Broker between Agents and Kafka
 """
 
 import grpc
-import uuid
 import threading
 import json
 from concurrent import futures
@@ -45,9 +44,9 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
                 for request in request_iterator:
                     self.producer.produce(
                         Config.MONITORING_TOPIC,
-                        key=request.agent_id.encode("utf-8"),
+                        key=request.hostname.encode("utf-8"),
                         value=json.dumps({
-                            "agent_id": request.agent_id,
+                            "hostname": request.hostname,
                             "timestamp": request.timestamp,
                             "metrics": {
                                 "cpu_percent": request.metrics.cpu_percent,
@@ -76,7 +75,6 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
                 if msg is not None and not msg.error():
                     cmd = json.loads(msg.value())
                     yield monitoring_pb2.Command(
-                        agent_id = cmd["agent_id"],
                         content = cmd["content"],
                         timestamp = cmd["timestamp"]
                     )

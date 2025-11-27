@@ -29,7 +29,7 @@ class AnalysisApp:
     def display_metrics(self, data: dict):
         """Display metrics to stdout"""
         m = data.get("metrics", {})
-        print(f"\n[{data.get('agent_id', 'unknown')}] {data.get('timestamp', '')}")
+        print(f"\n[{data.get('hostname', 'unknown')}] {data.get('timestamp', '')}")
         print(
             f"  CPU: {m.get('cpu_percent', 0):.2f}% | Memory: {m.get('memory_percent', 0):.2f}%"
         )
@@ -65,13 +65,13 @@ class AnalysisApp:
         finally:
             self.consumer.close()
 
-    def send_command(self, agent_id: str, content: str):
+    def send_command(self, hostname: str, content: str):
         
         self.producer.produce(
             Config.COMMAND_TOPIC,
-            key=agent_id,
+            key=hostname,
             value=json.dumps({
-                "agent_id": agent_id,
+                "hostname": hostname,
                 "content": content,
                 "timestamp": int(time.time())
             })
@@ -134,7 +134,7 @@ Examples:
         help="Maximum time to wait for messages in seconds (default: 5.0)",
     )
     send_command_parser.add_argument(
-        "--agent-id",
+        "--hostname",
         type=str,
         required=True
     )
@@ -151,7 +151,7 @@ Examples:
     if args.command == "get-metrics":
         app.get_all_metrics(timeout=args.timeout)
     if args.command == "send-command":
-        app.send_command(agent_id=args.agent_id, content=args.content)
+        app.send_command(hostname=args.hostname, content=args.content)
     return 0
 
 

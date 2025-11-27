@@ -14,31 +14,26 @@ class EtcdConfigManager:
 
     def __init__(
         self,
-        agent_id: str,
-        etcd_host: str = None,
-        etcd_port: int = None,
+        hostname: str,
+        etcd_host: str,
+        etcd_port: int,
         config_key: Optional[str] = None,
     ):
         """
         Initialize etcd configuration manager
 
         Args:
-            agent_id: Agent identifier for config key
+            hostname: Agent identifier for config key
             etcd_host: etcd server hostname (defaults to ETCD_HOST env var or localhost)
             etcd_port: etcd server port (defaults to ETCD_PORT env var or 2379)
-            config_key: Full config key path (if None, uses /monitor/config/<agent_id>)
+            config_key: Full config key path (if None, uses /monitor/config/<hostname>)
         """
-        if etcd_host is None:
-            etcd_host = os.getenv("ETCD_HOST", "localhost")
-        if etcd_port is None:
-            etcd_port = int(os.getenv("ETCD_PORT", "2379"))
-        
         self.etcd_host = etcd_host
         self.etcd_port = etcd_port
-        self.agent_id = agent_id
+        self.hostname = hostname
 
-        # Default config key format: /monitor/config/<agent_id>
-        self.config_key = config_key or f"/monitor/config/{agent_id}"
+        # Default config key format: /monitor/config/<hostname>
+        self.config_key = config_key or f"/monitor/config/{hostname}"
 
         # Thread-safe configuration storage
         self._config: Dict[str, Any] = {}
