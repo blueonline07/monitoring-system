@@ -6,10 +6,11 @@ import os
 import json
 import argparse
 import etcd3
+from shared import Config
 
 
 def setup_config(
-    agent_id: str,
+    hostname: str,
     etcd_host: str = None,
     etcd_port: int = None,
     interval: int = 5,
@@ -20,17 +21,13 @@ def setup_config(
     Set up configuration in etcd
 
     Args:
-        agent_id: Agent identifier for config key
+        hostname: Agent identifier for config key
         etcd_host: etcd server hostname (defaults to ETCD_HOST env var or localhost)
         etcd_port: etcd server port (defaults to ETCD_PORT env var or 2379)
         interval: Metrics collection interval in seconds
         metrics: List of metrics to collect
         plugins: List of plugin paths
     """
-    if etcd_host is None:
-        etcd_host = os.getenv("ETCD_HOST", "localhost")
-    if etcd_port is None:
-        etcd_port = int(os.getenv("ETCD_PORT", "2379"))
     if metrics is None:
         metrics = [
             "cpu",
@@ -46,7 +43,7 @@ def setup_config(
             "agent.plugins.deduplication.DeduplicationPlugin",
         ]
 
-    config_key = f"/monitor/config/{agent_id}"
+    config_key = f"/monitor/config/{hostname}"
     config = {
         "interval": interval,
         "metrics": metrics,
@@ -73,17 +70,17 @@ def main():
     parser.add_argument(
         "--etcd-host", 
         type=str, 
-        default=os.getenv("ETCD_HOST", "localhost"), 
+        default= Config.ETCD_HOST, 
         help="etcd server hostname (default: ETCD_HOST env var or localhost)"
     )
     parser.add_argument(
         "--etcd-port", 
         type=int, 
-        default=int(os.getenv("ETCD_PORT", "2379")), 
+        default=Config.ETCD_PORT, 
         help="etcd server port (default: ETCD_PORT env var or 2379)"
     )
     parser.add_argument(
-        "--agent-id",
+        "--hostname",
         type=str,
         required=True,
         help="Agent ID for config key",
@@ -107,7 +104,7 @@ def main():
     args = parser.parse_args()
 
     setup_config(
-        agent_id=args.agent_id,
+        hostname=args.hostname,
         etcd_host=args.etcd_host,
         etcd_port=args.etcd_port,
         interval=args.interval,

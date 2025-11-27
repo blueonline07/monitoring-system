@@ -100,7 +100,7 @@ def serve(
     global _server_servicer
 
     kafka_producer = Producer({
-        "bootstrap.servers": bootstrap_servers
+        "bootstrap.servers": bootstrap_servers,
     })
 
     kafka_consumer = Consumer({

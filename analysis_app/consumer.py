@@ -6,7 +6,7 @@ Analysis Application - CLI tool to read metrics from Kafka
 from confluent_kafka import Consumer, Producer
 import time
 import json
-from shared import Config, monitoring_pb2
+from shared import Config
 
 class AnalysisApp:
     """Analysis application: reads metrics from Kafka"""
