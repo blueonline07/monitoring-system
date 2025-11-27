@@ -54,7 +54,7 @@ class MonitoringAgent:
 
         # Initialize modules with initial config
         self.collector = MetricCollector(hostname, self.active_metrics)
-        self.grpc_client = GrpcClient(server_address)
+        self.grpc_client = GrpcClient(server_address, hostname)
         self.plugin_manager = PluginManager(initial_config)
 
         self.running = False

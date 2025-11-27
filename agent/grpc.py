@@ -3,7 +3,6 @@ gRPC module - handles communication with the centralized server
 """
 
 import grpc
-import threading
 from typing import Iterator
 from shared import monitoring_pb2
 from shared import monitoring_pb2_grpc
@@ -12,13 +11,14 @@ from shared import monitoring_pb2_grpc
 class GrpcClient:
     """Handles gRPC communication with the monitoring server"""
 
-    def __init__(self, server_address: str):
+    def __init__(self, server_address: str, hostname: str):
         """
         Initialize gRPC client
 
         Args:
             server_address: Address of the gRPC server (host:port)
         """
+        self.client_hostname = hostname
         self.server_address = server_address
         self.channel = None
         self.stub = None
@@ -50,7 +50,7 @@ class GrpcClient:
         if not self.connected:
             raise RuntimeError("Not connected to gRPC server. Call connect() first.")
         try:
-            response_stream = self.stub.StreamMetrics(metrics_generator)
+            response_stream = self.stub.StreamMetrics(metrics_generator, metadata=[('hostname', self.client_hostname)])
             
             # Consume responses to keep the stream alive
             for cmd in response_stream:
