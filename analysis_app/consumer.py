@@ -2,11 +2,11 @@
 Analysis Application - CLI tool to read metrics from Kafka
 """
 
-
 from confluent_kafka import Consumer, Producer
 import time
 import json
 from shared import Config
+
 
 class AnalysisApp:
     """Analysis application: reads metrics from Kafka"""
@@ -16,14 +16,10 @@ class AnalysisApp:
             {
                 "bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER,
                 "group.id": Config.KAFKA_GROUP_ID,
-                'auto.offset.reset': 'smallest'
+                "auto.offset.reset": "smallest",
             }
         )
-        self.producer = Producer(
-            {
-                "bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER
-            }
-        )
+        self.producer = Producer({"bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER})
         self.consumer.subscribe([Config.MONITORING_TOPIC])
 
     def display_metrics(self, data: dict):
@@ -66,15 +62,17 @@ class AnalysisApp:
             self.consumer.close()
 
     def send_command(self, hostname: str, content: str):
-        
+
         self.producer.produce(
             Config.COMMAND_TOPIC,
             key=hostname,
-            value=json.dumps({
-                "hostname": hostname,
-                "content": content,
-                "timestamp": int(time.time())
-            })
+            value=json.dumps(
+                {
+                    "hostname": hostname,
+                    "content": content,
+                    "timestamp": int(time.time()),
+                }
+            ),
         )
         self.producer.flush()
 
@@ -123,8 +121,7 @@ Examples:
     )
 
     send_command_parser = subparsers.add_parser(
-        "send-command",
-        help="send command to agent"
+        "send-command", help="send command to agent"
     )
 
     get_metrics_parser.add_argument(
@@ -133,17 +130,9 @@ Examples:
         default=5.0,
         help="Maximum time to wait for messages in seconds (default: 5.0)",
     )
-    send_command_parser.add_argument(
-        "--hostname",
-        type=str,
-        required=True
-    )
-    send_command_parser.add_argument(
-        "--content",
-        type=str,
-        default=""
-    )
-    
+    send_command_parser.add_argument("--hostname", type=str, required=True)
+    send_command_parser.add_argument("--content", type=str, default="")
+
     args = parser.parse_args()
 
     app = AnalysisApp()

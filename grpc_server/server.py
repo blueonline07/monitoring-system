@@ -13,12 +13,11 @@ from shared import monitoring_pb2, monitoring_pb2_grpc, Config
 from confluent_kafka import Producer, Consumer
 from .kafka import KafkaWrapper
 
+
 class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
     """gRPC service implementation for receiving monitoring data from agents"""
 
-    def __init__(
-        self, kafka_producer: Producer, kafka_consumer: Consumer
-    ):
+    def __init__(self, kafka_producer: Producer, kafka_consumer: Consumer):
         """
         Initialize the monitoring service
 
@@ -45,49 +44,50 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
                     self.producer.produce(
                         Config.MONITORING_TOPIC,
                         key=request.hostname.encode("utf-8"),
-                        value=json.dumps({
-                            "hostname": request.hostname,
-                            "timestamp": request.timestamp,
-                            "metrics": {
-                                "cpu_percent": request.metrics.cpu_percent,
-                                "memory_percent": request.metrics.memory_percent,
-                                "memory_used_mb": request.metrics.memory_used_mb,
-                                "memory_total_mb": request.metrics.memory_total_mb,
-                                "disk_read_mb": request.metrics.disk_read_mb,
-                                "disk_write_mb": request.metrics.disk_write_mb,
-                                "net_in_mb": request.metrics.net_in_mb,
-                                "net_out_mb": request.metrics.net_out_mb,
-                            },
-                            "metadata": dict(request.metadata),
-                        }).encode("utf-8"),
+                        value=json.dumps(
+                            {
+                                "hostname": request.hostname,
+                                "timestamp": request.timestamp,
+                                "metrics": {
+                                    "cpu_percent": request.metrics.cpu_percent,
+                                    "memory_percent": request.metrics.memory_percent,
+                                    "memory_used_mb": request.metrics.memory_used_mb,
+                                    "memory_total_mb": request.metrics.memory_total_mb,
+                                    "disk_read_mb": request.metrics.disk_read_mb,
+                                    "disk_write_mb": request.metrics.disk_write_mb,
+                                    "net_in_mb": request.metrics.net_in_mb,
+                                    "net_out_mb": request.metrics.net_out_mb,
+                                },
+                                "metadata": dict(request.metadata),
+                            }
+                        ).encode("utf-8"),
                     )
                     self.producer.flush()
-                    
+
             except Exception as e:
                 print(f"Error processing requests: {e}")
-        
+
         recv_thread = threading.Thread(target=process_requests, daemon=True)
         recv_thread.start()
-        
+
         try:
             while context.is_active():
                 msg = self.consumer.poll(timeout=1.0)
                 if msg is not None and not msg.error():
                     cmd = json.loads(msg.value())
                     yield monitoring_pb2.Command(
-                        content = cmd["content"],
-                        timestamp = cmd["timestamp"]
+                        content=cmd["content"], timestamp=cmd["timestamp"]
                     )
         except Exception as e:
             print(f"Error in response stream: {e}")
         finally:
             recv_thread.join(timeout=2)
 
+
 _server_servicer = None
 
-def serve(
-    port
-):
+
+def serve(port):
     """
     Start the gRPC server
 
@@ -104,9 +104,7 @@ def serve(
 
     # Create gRPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    _server_servicer = MonitoringServiceServicer(
-        kafka_producer, kafka_consumer
-    )
+    _server_servicer = MonitoringServiceServicer(kafka_producer, kafka_consumer)
     monitoring_pb2_grpc.add_MonitoringServiceServicer_to_server(
         _server_servicer, server
     )

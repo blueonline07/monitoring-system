@@ -10,12 +10,12 @@ from agent.agent import MonitoringAgent
 
 def main():
     parser = argparse.ArgumentParser(description="Monitoring Agent")
-    
+
     # Get defaults from environment variables
     grpc_server_host = Config.HOST
     grpc_server_port = Config.PORT
     default_server = f"{grpc_server_host}:{grpc_server_port}"
-    
+
     parser.add_argument(
         "--server", type=str, default=default_server, help="gRPC server address"
     )
@@ -37,11 +37,7 @@ def main():
         default=None,
         help="Custom etcd config key (default: /monitor/config/<hostname>)",
     )
-    parser.add_argument(
-        "--hostname",
-        type=str,
-        default=socket.gethostname()
-    )
+    parser.add_argument("--hostname", type=str, default=socket.gethostname())
 
     args = parser.parse_args()
 

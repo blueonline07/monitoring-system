@@ -93,7 +93,7 @@ class MonitoringAgent:
 
         # Reload plugins
         self.plugin_manager.load_plugins(new_config)
-        print(f"✓ Config update applied")
+        print("Config update applied")
 
     def initialize(self):
         """Initialize agent and all modules"""
@@ -120,7 +120,9 @@ class MonitoringAgent:
                     last_config = current_config.copy()
                 time.sleep(1)  # Check every second
 
-        self._config_monitor_thread = threading.Thread(target=config_monitor, daemon=True)
+        self._config_monitor_thread = threading.Thread(
+            target=config_monitor, daemon=True
+        )
 
         # Connect to gRPC server
         self.grpc_client.connect()

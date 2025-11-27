@@ -30,7 +30,7 @@ class MetricCollector:
         """
         self._active_metrics_lock = threading.Lock()
         self.active_metrics = active_metrics
-        
+
         # Initialize baseline measurements for rate-based metrics
         self._last_disk_io = psutil.disk_io_counters()
         self._last_net_io = psutil.net_io_counters()
@@ -61,7 +61,8 @@ class MetricCollector:
             normalized_active = [m.replace("_", " ") for m in self.active_metrics]
             normalized_name = metric_name.replace("_", " ")
             return (
-                normalized_name in normalized_active or metric_name in self.active_metrics
+                normalized_name in normalized_active
+                or metric_name in self.active_metrics
             )
 
     def collect_metrics(self) -> Dict[str, Any]:
@@ -73,12 +74,12 @@ class MetricCollector:
         """
         current_time = time.time()
         time_delta = current_time - self._last_measurement_time
-        
+
         # Collect CPU metrics
         cpu_percent = 0.0
         if self._is_metric_active("cpu"):
             cpu_percent = psutil.cpu_percent(interval=0.1)
-        
+
         # Collect memory metrics
         memory_percent = 0.0
         memory_used_mb = 0.0
@@ -86,9 +87,9 @@ class MetricCollector:
             mem = psutil.virtual_memory()
             memory_percent = mem.percent
             memory_used_mb = mem.used / (1024 * 1024)  # Convert to MB
-        
+
         memory_total_mb = psutil.virtual_memory().total / (1024 * 1024)
-        
+
         # Collect disk I/O metrics (rate per second)
         disk_read_mb = 0.0
         disk_write_mb = 0.0
@@ -97,18 +98,22 @@ class MetricCollector:
                 current_disk_io = psutil.disk_io_counters()
                 if current_disk_io and self._last_disk_io and time_delta > 0:
                     if self._is_metric_active("disk_read"):
-                        read_bytes = current_disk_io.read_bytes - self._last_disk_io.read_bytes
+                        read_bytes = (
+                            current_disk_io.read_bytes - self._last_disk_io.read_bytes
+                        )
                         disk_read_mb = (read_bytes / (1024 * 1024)) / time_delta
-                    
+
                     if self._is_metric_active("disk_write"):
-                        write_bytes = current_disk_io.write_bytes - self._last_disk_io.write_bytes
+                        write_bytes = (
+                            current_disk_io.write_bytes - self._last_disk_io.write_bytes
+                        )
                         disk_write_mb = (write_bytes / (1024 * 1024)) / time_delta
-                    
+
                     self._last_disk_io = current_disk_io
             except Exception as e:
                 # Handle cases where disk_io_counters might not be available
-                pass
-        
+                print(f"Error collecting disk metrics: {e}")
+
         # Collect network I/O metrics (rate per second)
         net_in_mb = 0.0
         net_out_mb = 0.0
@@ -117,20 +122,24 @@ class MetricCollector:
                 current_net_io = psutil.net_io_counters()
                 if current_net_io and self._last_net_io and time_delta > 0:
                     if self._is_metric_active("net_in"):
-                        recv_bytes = current_net_io.bytes_recv - self._last_net_io.bytes_recv
+                        recv_bytes = (
+                            current_net_io.bytes_recv - self._last_net_io.bytes_recv
+                        )
                         net_in_mb = (recv_bytes / (1024 * 1024)) / time_delta
-                    
+
                     if self._is_metric_active("net_out"):
-                        sent_bytes = current_net_io.bytes_sent - self._last_net_io.bytes_sent
+                        sent_bytes = (
+                            current_net_io.bytes_sent - self._last_net_io.bytes_sent
+                        )
                         net_out_mb = (sent_bytes / (1024 * 1024)) / time_delta
-                    
+
                     self._last_net_io = current_net_io
             except Exception as e:
                 # Handle cases where net_io_counters might not be available
-                pass
-        
+                print(f"Error collecting network metrics: {e}")
+
         self._last_measurement_time = current_time
-        
+
         all_metrics = {
             "cpu_percent": cpu_percent,
             "memory_percent": memory_percent,

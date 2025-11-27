@@ -68,16 +68,16 @@ def main():
         description="Set up etcd configuration for monitoring agents"
     )
     parser.add_argument(
-        "--etcd-host", 
-        type=str, 
-        default= Config.ETCD_HOST, 
-        help="etcd server hostname (default: ETCD_HOST env var or localhost)"
+        "--etcd-host",
+        type=str,
+        default=Config.ETCD_HOST,
+        help="etcd server hostname (default: ETCD_HOST env var or localhost)",
     )
     parser.add_argument(
-        "--etcd-port", 
-        type=int, 
-        default=Config.ETCD_PORT, 
-        help="etcd server port (default: ETCD_PORT env var or 2379)"
+        "--etcd-port",
+        type=int,
+        default=Config.ETCD_PORT,
+        help="etcd server port (default: ETCD_PORT env var or 2379)",
     )
     parser.add_argument(
         "--hostname",
