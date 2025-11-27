@@ -75,15 +75,15 @@ class EtcdConfigManager:
             if value:
                 config = json.loads(value.decode("utf-8"))
                 self._update_config(config)
-                print(f"✓ Loaded initial config from etcd: {self.config_key}")
+                print(f"Loaded initial config from etcd: {self.config_key}")
                 return config
             else:
-                print(f"⚠ No config found at {self.config_key}, using defaults")
+                print(f"No config found at {self.config_key}, using defaults")
                 default_config = self._get_default_config()
                 self._update_config(default_config)
                 return default_config
         except Exception as e:
-            print(f"✗ Error loading config from etcd: {e}")
+            print(f"Error loading config from etcd: {e}")
             default_config = self._get_default_config()
             self._update_config(default_config)
             return default_config
@@ -106,10 +106,7 @@ class EtcdConfigManager:
                 "net out",
             ],
             "plugins": [
-                "agent.plugins.deduplication.DeduplicationPlugin",
-                "agent.plugins.threshold_alert.ThresholdAlertPlugin",
-                "agent.plugins.filter.FilterPlugin",
-                "agent.plugins.aggregation.AggregationPlugin",  # Pass-through with aggregation metadata
+                
             ],
             "thresholds": {
                 "cpu_percent": 80.0,
@@ -136,12 +133,12 @@ class EtcdConfigManager:
                 try:
                     new_config = json.loads(event.value.decode("utf-8"))
                     self._update_config(new_config)
-                    print(f"✓ Config updated from etcd: {self.config_key}")
+                    print(f"Config updated from etcd: {self.config_key}")
                     print(f"  New config: {new_config}")
                 except Exception as e:
-                    print(f"✗ Error parsing config update: {e}")
+                    print(f"Error parsing config update: {e}")
             elif isinstance(event, etcd3.events.DeleteEvent):
-                print(f"⚠ Config deleted from etcd: {self.config_key}, using defaults")
+                print(f"Config deleted from etcd: {self.config_key}, using defaults")
                 self._update_config(self._get_default_config())
 
     def start_watching(self):
@@ -150,18 +147,18 @@ class EtcdConfigManager:
             self._watch_id = self.etcd.add_watch_callback(
                 self.config_key, self._watch_config_callback
             )
-            print(f"✓ Started watching config key: {self.config_key}")
+            print(f"Started watching config key: {self.config_key}")
         except Exception as e:
-            print(f"✗ Error starting config watch: {e}")
+            print(f"Error starting config watch: {e}")
 
     def stop_watching(self):
         """Stop watching for configuration changes"""
         if self._watch_id is not None:
             try:
                 self.etcd.cancel_watch(self._watch_id)
-                print("✓ Stopped watching config")
+                print("Stopped watching config")
             except Exception as e:
-                print(f"✗ Error stopping config watch: {e}")
+                print(f"Error stopping config watch: {e}")
             finally:
                 self._watch_id = None
 

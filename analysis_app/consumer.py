@@ -36,7 +36,7 @@ class AnalysisApp:
             f"  Network: In={m.get('net_in_mb', 0):.2f}MB/s Out={m.get('net_out_mb', 0):.2f}MB/s"
         )
 
-    def get_all_metrics(self, timeout: float = 5.0):
+    def get_all_metrics(self, hostname: str, timeout: float = 5.0):
         """Get all metrics from Kafka and display to stdout"""
         start_time = time.time()
         count = 0
@@ -46,7 +46,8 @@ class AnalysisApp:
                 msg = self.consumer.poll(timeout=0.5)
                 if msg is None or msg.error():
                     continue
-
+                if msg.key().decode("utf-8") != hostname:
+                    continue
                 try:
                     data = json.loads(msg.value().decode("utf-8"))
                     count += 1
@@ -97,19 +98,6 @@ Examples:
         """,
     )
 
-    parser.add_argument(
-        "--kafka",
-        type=str,
-        default=Config.KAFKA_BOOTSTRAP_SERVER,
-        help="Kafka bootstrap servers (default: KAFKA_BOOTSTRAP_SERVERS env var or localhost:9092)",
-    )
-    parser.add_argument(
-        "--group-id",
-        type=str,
-        default="analysis-app-group",
-        help="Consumer group ID (default: analysis-app-group)",
-    )
-
     subparsers = parser.add_subparsers(
         dest="command", required=True, help="Available commands"
     )
@@ -118,6 +106,11 @@ Examples:
     get_metrics_parser = subparsers.add_parser(
         "get-metrics",
         help="Get all metrics from Kafka and display to stdout",
+    )
+    get_metrics_parser.add_argument(
+        "--hostname",
+        type=str,
+        required=True
     )
 
     send_command_parser = subparsers.add_parser(
@@ -138,7 +131,7 @@ Examples:
     app = AnalysisApp()
 
     if args.command == "get-metrics":
-        app.get_all_metrics(timeout=args.timeout)
+        app.get_all_metrics(hostname=args.hostname, timeout=args.timeout)
     if args.command == "send-command":
         app.send_command(hostname=args.hostname, content=args.content)
     return 0

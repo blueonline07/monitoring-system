@@ -20,7 +20,7 @@ except ImportError:
 class MetricCollector:
     """Collects system metrics from localhost"""
 
-    def __init__(self, agent_id: str, active_metrics: List[str]):
+    def __init__(self, hostname: str, active_metrics: List[str]):
         """
         Initialize metric collector
 
@@ -28,6 +28,7 @@ class MetricCollector:
             agent_id: Unique identifier for this agent
             active_metrics: List of metric names to collect (supports both "disk read" and "disk_read" formats)
         """
+        self.hostname = hostname
         self._active_metrics_lock = threading.Lock()
         self.active_metrics = active_metrics
 
@@ -166,7 +167,7 @@ class MetricCollector:
             MetricsRequest protobuf message
         """
         return monitoring_pb2.MetricsRequest(
-            hostname=socket.gethostname(),
+            hostname=self.hostname,
             timestamp=int(datetime.now().timestamp()),
             metrics=monitoring_pb2.SystemMetrics(
                 cpu_percent=metrics["cpu_percent"],

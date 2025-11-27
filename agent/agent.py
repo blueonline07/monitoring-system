@@ -5,7 +5,7 @@ Monitoring Agent - Modular architecture with collect, grpc, and plugins
 import time
 import threading
 from typing import Dict, Any, Optional, Iterator
-from shared import monitoring_pb2, Config
+from shared import monitoring_pb2
 
 from agent.collect import MetricCollector
 from agent.grpc import GrpcClient
@@ -77,7 +77,7 @@ class MonitoringAgent:
         Args:
             new_config: New configuration dictionary
         """
-        print(f"🔄 Applying config update for agent {self.hostname}...")
+        print(f"Applying config update for agent {self.hostname}...")
 
         # Update interval
         new_interval = new_config.get("interval", 5)
@@ -129,7 +129,7 @@ class MonitoringAgent:
 
         self.running = True
         self._config_monitor_thread.start()
-        print(f"✓ Agent {self.hostname} initialized")
+        print(f"Agent {self.hostname} initialized")
 
     def metrics_generator(self) -> Iterator[monitoring_pb2.MetricsRequest]:
         """
