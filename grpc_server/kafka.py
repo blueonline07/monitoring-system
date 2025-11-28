@@ -29,7 +29,7 @@ class KafkaWrapper:
         self.__consumer = Consumer(
             {
                 "bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER,
-                "group.id": Config.KAFKA_GROUP_ID,
+                "group.id": Config.COMMAND_GROUP_ID,
                 "auto.offset.reset": "earliest",
             }
         )

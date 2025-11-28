@@ -13,7 +13,8 @@ class Config:
     PORT = int(os.getenv("GRPC_SERVER_PORT", "50051"))
     MONITORING_TOPIC = "metrics"
     COMMAND_TOPIC = "command"
-    KAFKA_GROUP_ID = os.getenv("KAFKA_GROUP_ID", "monitoring-app")
+    MONITORING_GROUP_ID = os.getenv("MONITORING_GROUP_ID", "monitoring")
+    COMMAND_GROUP_ID = os.getenv("COMMAND_GROUP_ID", "cmd")
     KAFKA_BOOTSTRAP_SERVER = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "localhost:9092")
     KAFKA_DEFAULT_PARTITION = int(os.getenv("KAFKA_DEFAULT_PARTITIONS", "3"))
     KAFKA_DEFAULT_REPLICATION_FACTOR = int(

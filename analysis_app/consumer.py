@@ -15,31 +15,12 @@ class AnalysisApp:
         self.consumer = Consumer(
             {
                 "bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER,
-                "group.id": Config.KAFKA_GROUP_ID,
+                "group.id": Config.MONITORING_GROUP_ID,
                 "auto.offset.reset": "earliest",
             }
         )
         self.producer = Producer({"bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER})
         self.consumer.subscribe([Config.MONITORING_TOPIC])
-
-        # Seek to beginning to read all historical messages
-        # Wait for partition assignment
-        assignment = None
-        start_wait = time.time()
-        while assignment is None and (time.time() - start_wait) < 5.0:
-            assignment = self.consumer.assignment()
-            if not assignment:
-                time.sleep(0.1)
-                # Trigger assignment by polling
-                self.consumer.poll(timeout=0.1)
-
-        if assignment:
-            try:
-                # Seek to beginning (offset 0) for all assigned partitions
-                for partition in assignment:
-                    self.consumer.seek(partition, 0)
-            except Exception as e:
-                print(f"Warning: Could not seek to beginning: {e}")
 
     def display_metrics(self, data: dict):
         """Display metrics to stdout"""

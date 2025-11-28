@@ -151,7 +151,6 @@ class MetricCollector:
             "net_in_mb": net_in_mb,
             "net_out_mb": net_out_mb,
         }
-
         return all_metrics
 
     def create_metrics_request(
