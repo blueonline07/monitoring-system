@@ -79,12 +79,53 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+  elasticsearch:
+    build:
+      context: ./elk
+    environment:
+      - discovery.type=single-node
+      - ES_JAVA_OPTS=-Xms512m -Xmx512m
+    ports:
+      - 9200:9200
+      - 9300:9300
+    volumes:
+      - ./elk/es.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro,z
+      - data_esnode:/usr/share/elasticsearch/data
+    networks:
+      - elk
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.17.5
+    ports:
+      - 5601:5601
+    volumes:
+      - ./elk/kibana.yml:/usr/share/kibana/config/kibana.yml:ro,Z
+    networks:
+      - elk
+    depends_on:
+      - elasticsearch
+
+  logstash:
+    image: docker.elastic.co/logstash/logstash:7.17.5
+    volumes:
+      - ./elk/logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro,Z
+      - ./logs:/var/log/app
+    ports:
+      - "5000:5000"
+    depends_on:
+      - elasticsearch
+    networks:
+      - elk
+  
 
 networks:
   kafka-network:
+    driver: bridge
+  elk:
     driver: bridge
 
 volumes:
   etcd-data:
     driver: local
-
+  data_esnode:
+    driver: local
