@@ -1,10 +1,9 @@
 import json
 import signal
-import sys
 from typing import Dict, Any
-from datetime import datetime, timedelta 
+from datetime import datetime, timedelta
 from confluent_kafka import Consumer
-from shared import Config
+from config import Config
 from elk.elk_search import ElasticsearchClient
 
 
@@ -58,8 +57,10 @@ class ElasticsearchIndexer:
 
         current_utc = datetime.utcnow()
         timestamp = int(current_utc.timestamp())
-        
-        print(f"DEBUG TIME: Đang index dữ liệu vào lúc {current_utc} (UTC) -> Timestamp số: {timestamp}")
+
+        print(
+            f"DEBUG TIME: Đang index dữ liệu vào lúc {current_utc} (UTC) -> Timestamp số: {timestamp}"
+        )
 
         agent_id = 0
         try:
@@ -71,7 +72,7 @@ class ElasticsearchIndexer:
         return {
             "agent": hostname,
             "agent_id": agent_id,
-            "timestamp": timestamp, # Bây giờ nó là số nguyên (int), code sẽ hết lỗi
+            "timestamp": timestamp,  # Bây giờ nó là số nguyên (int), code sẽ hết lỗi
             "cpu": metrics.get("cpu_percent", 0.0),
             "memory": metrics.get("memory_percent", 0.0),
             "disk_read": metrics.get("disk_read_mb", 0.0),

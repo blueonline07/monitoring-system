@@ -4,8 +4,8 @@ gRPC module - handles communication with the centralized server
 
 import grpc
 from typing import Iterator
-from shared import monitoring_pb2
-from shared import monitoring_pb2_grpc
+from protobuf import monitoring_pb2
+from protobuf import monitoring_pb2_grpc
 
 
 class GrpcClient:
@@ -27,7 +27,7 @@ class GrpcClient:
     def connect(self):
         """Establish connection to gRPC server"""
         self.channel = grpc.insecure_channel(self.server_address)
-        self.stub = monitoring_pb2_grpc.MonitoringServiceStub(self.channel)
+        self.stub = monitoring_pb2_grpc.MonitoringStub(self.channel)
         self.connected = True
         print(f"✓ Connected to gRPC server at {self.server_address}")
 
@@ -50,12 +50,13 @@ class GrpcClient:
         if not self.connected:
             raise RuntimeError("Not connected to gRPC server. Call connect() first.")
         try:
-            response_stream = self.stub.StreamMetrics(metrics_generator, metadata=[('hostname', self.client_hostname)])
-            
+            response_stream = self.stub.StreamMetrics(
+                metrics_generator, metadata=[("hostname", self.client_hostname)]
+            )
             # Consume responses to keep the stream alive
             for cmd in response_stream:
                 print(f"Received command: {cmd}")
-                
+
         except Exception as e:
             print(f"Error in gRPC stream: {e}")
             raise

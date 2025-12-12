@@ -3,7 +3,7 @@ Filter Plugin - filters out metrics based on configurable conditions
 """
 
 from typing import Dict, Any, Optional
-from shared import monitoring_pb2
+from protobuf import monitoring_pb2
 from agent.plugins.base import BasePlugin
 
 

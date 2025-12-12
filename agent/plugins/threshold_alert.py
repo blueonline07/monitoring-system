@@ -3,7 +3,7 @@ Threshold Alert Plugin - alerts when metrics exceed configured thresholds
 """
 
 from typing import Dict, Any, Optional
-from shared import monitoring_pb2
+from protobuf import monitoring_pb2
 from agent.plugins.base import BasePlugin
 
 

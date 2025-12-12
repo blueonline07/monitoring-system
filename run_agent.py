@@ -4,7 +4,7 @@ Entry point for running the monitoring agent
 """
 import argparse
 import socket
-from shared.config import Config
+from config import Config
 from agent.agent import MonitoringAgent
 
 

@@ -2,12 +2,11 @@
 Collect module - handles metric collection from localhost
 """
 
-import socket
 import threading
 import time
 from typing import Dict, Any, List
 from datetime import datetime
-from shared import monitoring_pb2
+from protobuf import monitoring_pb2
 
 try:
     import psutil

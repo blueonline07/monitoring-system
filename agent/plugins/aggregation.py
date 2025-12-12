@@ -3,8 +3,7 @@ Aggregation Plugin - aggregates metrics over time windows
 """
 
 from typing import Dict, Any, Optional, List
-from datetime import datetime
-from shared import monitoring_pb2
+from protobuf import monitoring_pb2
 from agent.plugins.base import BasePlugin
 
 

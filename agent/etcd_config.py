@@ -2,7 +2,6 @@
 etcd Configuration Manager - handles reading and watching configuration from etcd
 """
 
-import os
 import json
 import threading
 import time

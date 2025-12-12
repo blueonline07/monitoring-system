@@ -5,7 +5,7 @@ Monitoring Agent - Modular architecture with collect, grpc, and plugins
 import time
 import threading
 from typing import Dict, Any, Optional, Iterator
-from shared import monitoring_pb2
+from protobuf import monitoring_pb2
 
 from agent.collect import MetricCollector
 from agent.grpc import GrpcClient
@@ -141,10 +141,10 @@ class MonitoringAgent:
         while self.running:
             # Collect metrics
             metrics = self.collector.collect_metrics()
-            
+
             # Save heartbeat to etcd after collecting metrics
             self.etcd_config.save_heartbeat()
-            
+
             metrics_request = self.collector.create_metrics_request(metrics)
 
             # Process through plugins

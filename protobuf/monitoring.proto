@@ -1,11 +1,11 @@
 syntax = "proto3";
 
 package monitoring;
+service Monitoring {
 
-service MonitoringService {
-
-    rpc StreamMetrics(stream MetricsRequest) returns (stream Command);
+   rpc StreamMetrics(stream MetricsRequest) returns (stream Command);
 }
+
 message SystemMetrics {
     double cpu_percent = 1;
     double memory_percent = 2;
@@ -24,8 +24,13 @@ message MetricsRequest {
     map<string, string> metadata = 4;
 }
 
+enum CommandType {
+    CONFIG = 0;
+    CONTROL = 1;
+}
+
 message Command {
-    string hostname = 1;
-    string content = 2;
-    int64 timestamp = 3;
+    string agent = 1;
+    // CommandType type = 2;
+    // map<string, string> params = 3;
 }
