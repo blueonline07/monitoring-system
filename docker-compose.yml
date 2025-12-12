@@ -85,6 +85,9 @@ services:
     environment:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
+      # SMTP password sẽ được tự động thêm vào keystore khi container khởi động
+      # Set password trong file .env hoặc uncomment dòng dưới
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
     ports:
       - 9200:9200
       - 9300:9300
