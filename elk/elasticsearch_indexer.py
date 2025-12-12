@@ -2,9 +2,10 @@ import json
 import signal
 import sys
 from typing import Dict, Any
+from datetime import datetime, timedelta 
 from confluent_kafka import Consumer
 from shared import Config
-from elk_search import ElasticsearchClient
+from elk.elk_search import ElasticsearchClient
 
 
 class ElasticsearchIndexer:
@@ -20,13 +21,6 @@ class ElasticsearchIndexer:
     ):
         """
         Initialize Elasticsearch Indexer
-
-        Args:
-            kafka_bootstrap_server: Kafka bootstrap server (default: từ Config)
-            elasticsearch_host: Elasticsearch host
-            elasticsearch_port: Elasticsearch port
-            index_name: Tên index trong Elasticsearch
-            consumer_group_id: Kafka consumer group ID
         """
         # Initialize Elasticsearch client
         self.es_client = ElasticsearchClient(
@@ -55,25 +49,18 @@ class ElasticsearchIndexer:
         signal.signal(signal.SIGTERM, self._signal_handler)
 
     def _signal_handler(self, signum, frame):
-        """Handle shutdown signals"""
         print(f"\nReceived signal {signum}, shutting down gracefully...")
         self.stop()
 
     def _parse_metric_data(self, kafka_data: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Parse metric data từ Kafka message format sang Elasticsearch format
-
-        Args:
-            kafka_data: Data từ Kafka message
-
-        Returns:
-            Dictionary với format phù hợp cho Elasticsearch
-        """
         hostname = kafka_data.get("hostname", "unknown")
-        timestamp = kafka_data.get("timestamp", 0)
         metrics = kafka_data.get("metrics", {})
 
-        # Extract agent ID từ hostname (ví dụ: "agent-1" -> 1)
+        current_utc = datetime.utcnow()
+        timestamp = int(current_utc.timestamp())
+        
+        print(f"DEBUG TIME: Đang index dữ liệu vào lúc {current_utc} (UTC) -> Timestamp số: {timestamp}")
+
         agent_id = 0
         try:
             if "-" in hostname:
@@ -84,7 +71,7 @@ class ElasticsearchIndexer:
         return {
             "agent": hostname,
             "agent_id": agent_id,
-            "timestamp": timestamp,
+            "timestamp": timestamp, # Bây giờ nó là số nguyên (int), code sẽ hết lỗi
             "cpu": metrics.get("cpu_percent", 0.0),
             "memory": metrics.get("memory_percent", 0.0),
             "disk_read": metrics.get("disk_read_mb", 0.0),
@@ -96,12 +83,6 @@ class ElasticsearchIndexer:
     def _index_metric(self, metric_data: Dict[str, Any]) -> bool:
         """
         Index một metric vào Elasticsearch
-
-        Args:
-            metric_data: Metric data đã được parse
-
-        Returns:
-            True nếu thành công
         """
         try:
             return self.es_client.index_metric(
@@ -120,15 +101,7 @@ class ElasticsearchIndexer:
             return False
 
     def process_message(self, msg) -> bool:
-        """
-        Process một Kafka message
-
-        Args:
-            msg: Kafka message object
-
-        Returns:
-            True nếu xử lý thành công
-        """
+        """Process một Kafka message"""
         if msg.error():
             print(f"Consumer error: {msg.error()}")
             return False
@@ -216,20 +189,6 @@ def main():
     parser = argparse.ArgumentParser(
         description="Elasticsearch Indexer - Đọc từ Kafka và index vào Elasticsearch",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Chạy với cấu hình mặc định
-  python elasticsearch_indexer.py
-
-  # Chỉ định Elasticsearch host và port
-  python elasticsearch_indexer.py --es-host localhost --es-port 9200
-
-  # Chỉ định Kafka server
-  python elasticsearch_indexer.py --kafka localhost:9092
-
-  # Chỉ định tên index
-  python elasticsearch_indexer.py --index my-metrics
-        """,
     )
 
     parser.add_argument(
@@ -279,4 +238,3 @@ Examples:
 
 if __name__ == "__main__":
     main()
-

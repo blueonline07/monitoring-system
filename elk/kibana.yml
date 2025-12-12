@@ -3,5 +3,10 @@
 #
 server.name: kibana
 server.host: 0.0.0.0
+server.port: 5601
 elasticsearch.hosts: [ "http://elasticsearch:9200" ]
+enterpriseSearch.host: 'http://localhost:3002'
 monitoring.ui.container.elasticsearch.enabled: true
+xpack.encryptedSavedObjects.encryptionKey: "somesecretkeythatisatleast32characterslong"
+xpack.reporting.encryptionKey: "somesecretkeythatisatleast32characterslong"
+xpack.security.encryptionKey: "somesecretkeythatisatleast32characterslong"

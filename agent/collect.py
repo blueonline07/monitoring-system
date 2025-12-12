@@ -169,7 +169,7 @@ class MetricCollector:
             hostname=self.hostname,
             timestamp=int(datetime.now().timestamp()),
             metrics=monitoring_pb2.SystemMetrics(
-                cpu_percent=0,
+                cpu_percent=metrics["cpu_percent"],
                 memory_percent=metrics["memory_percent"],
                 memory_used_mb=metrics["memory_used_mb"],
                 memory_total_mb=metrics["memory_total_mb"],
