@@ -7,6 +7,7 @@ import time
 from typing import Dict, Any, List
 from datetime import datetime
 from protobuf import monitoring_pb2
+from google.protobuf.struct_pb2 import Struct
 
 try:
     import psutil
@@ -30,7 +31,8 @@ class MetricCollector:
         self.hostname = hostname
         self._active_metrics_lock = threading.Lock()
         self.active_metrics = active_metrics
-
+        self.flag = False
+        self.key = ""
         # Initialize baseline measurements for rate-based metrics
         self._last_disk_io = psutil.disk_io_counters()
         self._last_net_io = psutil.net_io_counters()
@@ -139,6 +141,29 @@ class MetricCollector:
                 print(f"Error collecting network metrics: {e}")
 
         self._last_measurement_time = current_time
+        meta = {}
+        if self.flag:
+            procs = []
+
+            for p in psutil.process_iter(["pid", "name"]):
+                try:
+                    cpu = p.cpu_percent(None)
+                    mem = p.memory_percent()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    continue
+
+                procs.append(
+                    {
+                        "pid": p.pid,
+                        "name": p.info["name"],
+                        "cpu_percent": cpu,
+                        "memory_percent": mem,
+                    }
+                )
+
+            procs.sort(key=lambda x: x[self.key], reverse=True)
+            meta = {"processes": procs[: min(5, len(procs))]}
+            self.flag = False
 
         all_metrics = {
             "cpu_percent": cpu_percent,
@@ -150,10 +175,11 @@ class MetricCollector:
             "net_in_mb": net_in_mb,
             "net_out_mb": net_out_mb,
         }
-        return all_metrics
+
+        return all_metrics, meta
 
     def create_metrics_request(
-        self, metrics: Dict[str, Any]
+        self, metrics: Dict[str, Any], metadata={}
     ) -> monitoring_pb2.MetricsRequest:
         """
         Create a MetricsRequest protobuf message from collected metrics
@@ -164,11 +190,13 @@ class MetricCollector:
         Returns:
             MetricsRequest protobuf message
         """
+        meta = Struct()
+        meta.update(metadata)
         return monitoring_pb2.MetricsRequest(
             hostname=self.hostname,
             timestamp=int(datetime.now().timestamp()),
             metrics=monitoring_pb2.SystemMetrics(
-                cpu_percent=metrics["cpu_percent"],
+                cpu_percent=98,
                 memory_percent=metrics["memory_percent"],
                 memory_used_mb=metrics["memory_used_mb"],
                 memory_total_mb=metrics["memory_total_mb"],
@@ -177,5 +205,9 @@ class MetricCollector:
                 net_in_mb=metrics["net_in_mb"],
                 net_out_mb=metrics["net_out_mb"],
             ),
-            metadata={},
+            metadata=meta,
         )
+
+    def run_diag(self, key):
+        self.flag = True
+        self.key = key

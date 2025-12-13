@@ -12,7 +12,6 @@ from google.protobuf.json_format import MessageToDict
 from agent.collect import MetricCollector
 from agent.plugin_manager import PluginManager
 from agent.etcd_config import EtcdConfigManager
-from agent.executor import Executor
 
 
 class MonitoringAgent:
@@ -49,7 +48,6 @@ class MonitoringAgent:
         self._interval_lock = threading.Lock()
         self._interval = initial_config.get("interval", 5)
         self.active_metrics = initial_config.get("metrics", [])
-        self.executor = Executor(server_address)
         self.collector = MetricCollector(hostname, self.active_metrics)
         self.channel = None
         self.stub = None
@@ -131,13 +129,12 @@ class MonitoringAgent:
             MetricsRequest messages
         """
         while self.running:
-            metrics = self.collector.collect_metrics()
+            metrics, metadata = self.collector.collect_metrics()
             self.etcd_config.save_heartbeat()
-            metrics_request = self.collector.create_metrics_request(metrics)
+            metrics_request = self.collector.create_metrics_request(metrics, metadata)
             processed_request = self.plugin_manager.process_metrics(metrics_request)
             if processed_request is not None:
                 yield processed_request
-
             time.sleep(self.interval)
 
     def run(self):
@@ -147,8 +144,9 @@ class MonitoringAgent:
             for cmd in response_stream:
                 if cmd.type == monitoring_pb2.CommandType.CONFIG:
                     self.etcd_config.store_config(MessageToDict(cmd.params))
-                elif cmd.type == monitoring_pb2.CommandType.CONTROL:
-                    self.executor.exec(MessageToDict(cmd.params))
+                elif cmd.type == monitoring_pb2.CommandType.DIAGNOSTIC:
+                    self.collector.run_diag(key=MessageToDict(cmd.params)["key"])
+
         except KeyboardInterrupt:
             print("\nShutting down agent...")
         finally:

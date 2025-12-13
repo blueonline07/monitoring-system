@@ -24,13 +24,13 @@ message MetricsRequest {
     string hostname = 1;
     SystemMetrics metrics = 2;
     int64 timestamp = 3;
-    map<string, string> metadata = 4;
+    google.protobuf.Struct metadata = 4;
 }
 
 enum CommandType {
     ACK = 0;
     CONFIG = 1;
-    CONTROL = 2;
+    DIAGNOSTIC = 2;
 }
 
 message Command {

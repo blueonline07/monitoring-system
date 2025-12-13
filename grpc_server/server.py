@@ -12,6 +12,7 @@ from config import Config
 from protobuf import monitoring_pb2, monitoring_pb2_grpc
 from confluent_kafka import Producer
 from google.protobuf.struct_pb2 import Struct
+from google.protobuf.json_format import MessageToDict
 
 
 class MonitoringServicer(monitoring_pb2_grpc.MonitoringServicer):
@@ -57,7 +58,7 @@ class MonitoringServicer(monitoring_pb2_grpc.MonitoringServicer):
                                 "net_in_mb": request.metrics.net_in_mb,
                                 "net_out_mb": request.metrics.net_out_mb,
                             },
-                            "metadata": dict(request.metadata),
+                            "metadata": MessageToDict(request.metadata),
                         }
                     ).encode("utf-8"),
                 )
@@ -69,12 +70,12 @@ class MonitoringServicer(monitoring_pb2_grpc.MonitoringServicer):
                 if cpu_percent < 0.4:
                     cmd_type = monitoring_pb2.CommandType.CONFIG
                     params.update({"interval": 2})
-                elif cpu_percent > 0.7 and cpu_percent < 0.9:
+                elif cpu_percent > 0.7 and cpu_percent < 0.8:
                     cmd_type = monitoring_pb2.CommandType.CONFIG
                     params.update({"interval": 10})
-                elif cpu_percent >= 0.9:
-                    cmd_type = monitoring_pb2.CommandType.CONTROL
-                    params.update({"action": "restart", "author": Config.HOST})
+                elif cpu_percent >= 0.8:
+                    cmd_type = monitoring_pb2.CommandType.DIAGNOSTIC
+                    params.update({"key": "cpu_percent"})
 
                 yield monitoring_pb2.Command(type=cmd_type, params=params)
 

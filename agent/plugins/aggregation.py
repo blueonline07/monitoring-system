@@ -5,6 +5,8 @@ Aggregation Plugin - aggregates metrics over time windows
 from typing import Dict, Any, Optional, List
 from protobuf import monitoring_pb2
 from agent.plugins.base import BasePlugin
+from google.protobuf.json_format import MessageToDict
+from google.protobuf.struct_pb2 import Struct
 
 
 class AggregationPlugin(BasePlugin):
@@ -70,7 +72,7 @@ class AggregationPlugin(BasePlugin):
         Returns:
             Aggregated MetricsRequest every window_size samples, None otherwise
         """
-        metrics = metrics_request.metrics
+        metrics = metrics
 
         # Convert to dict
         current_metrics = {
@@ -90,6 +92,7 @@ class AggregationPlugin(BasePlugin):
         # This ensures the stream never breaks while still providing aggregated insights
 
         # Check if window is full
+        metadata = MessageToDict(metrics_request.metadata)
         if len(self.history) >= self.window_size:
             # Calculate aggregate statistics
             aggregated = self._aggregate_metrics(self.history)
@@ -97,26 +100,14 @@ class AggregationPlugin(BasePlugin):
             self.send_count += 1
 
             # Mark this metric with aggregation data in metadata
-            metrics_request.metadata["is_aggregated"] = "true"
-            metrics_request.metadata["window_size"] = str(self.window_size)
-            metrics_request.metadata["cpu_avg"] = (
-                f"{aggregated.get('cpu_percent_avg', 0):.1f}"
-            )
-            metrics_request.metadata["cpu_min"] = (
-                f"{aggregated.get('cpu_percent_min', 0):.1f}"
-            )
-            metrics_request.metadata["cpu_max"] = (
-                f"{aggregated.get('cpu_percent_max', 0):.1f}"
-            )
-            metrics_request.metadata["mem_avg"] = (
-                f"{aggregated.get('memory_percent_avg', 0):.1f}"
-            )
-            metrics_request.metadata["mem_min"] = (
-                f"{aggregated.get('memory_percent_min', 0):.1f}"
-            )
-            metrics_request.metadata["mem_max"] = (
-                f"{aggregated.get('memory_percent_max', 0):.1f}"
-            )
+            metadata["is_aggregated"] = "true"
+            metadata["window_size"] = str(self.window_size)
+            metadata["cpu_avg"] = f"{aggregated.get('cpu_percent_avg', 0):.1f}"
+            metadata["cpu_min"] = f"{aggregated.get('cpu_percent_min', 0):.1f}"
+            metadata["cpu_max"] = f"{aggregated.get('cpu_percent_max', 0):.1f}"
+            metadata["mem_avg"] = f"{aggregated.get('memory_percent_avg', 0):.1f}"
+            metadata["mem_min"] = f"{aggregated.get('memory_percent_min', 0):.1f}"
+            metadata["mem_max"] = f"{aggregated.get('memory_percent_max', 0):.1f}"
 
             # Clear history for next window
             self.history = []
@@ -128,9 +119,10 @@ class AggregationPlugin(BasePlugin):
             )
         else:
             # Mark as raw (non-aggregated) data
-            metrics_request.metadata["is_aggregated"] = "false"
+            metadata["is_aggregated"] = "false"
 
-        # Always pass through - never drop to avoid breaking gRPC stream
+        metrics_request.metadata = Struct()
+        metrics_request.metadata.update(metadata)
         return metrics_request
 
     def finalize(self):
