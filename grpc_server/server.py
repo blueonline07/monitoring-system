@@ -8,16 +8,17 @@ import grpc
 import threading
 import json
 from concurrent import futures
+from config import Config
+from protobuf import monitoring_pb2, monitoring_pb2_grpc
+from confluent_kafka import Producer
+from google.protobuf.struct_pb2 import Struct
+from google.protobuf.json_format import MessageToDict
 
-from shared import monitoring_pb2, monitoring_pb2_grpc, Config
-from confluent_kafka import Producer, Consumer
-from .kafka import KafkaWrapper
 
-
-class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
+class MonitoringServicer(monitoring_pb2_grpc.MonitoringServicer):
     """gRPC service implementation for receiving monitoring data from agents"""
 
-    def __init__(self, kafka_producer: Producer, kafka_consumer: Consumer):
+    def __init__(self):
         """
         Initialize the monitoring service
 
@@ -25,10 +26,11 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
             kafka_producer: Kafka producer service for forwarding data
             kafka_bootstrap_servers: Kafka bootstrap servers
         """
-        self.producer = kafka_producer
-        self.consumer = kafka_consumer
-        self.consumer.subscribe([Config.COMMAND_TOPIC])
-        self.agents = {}
+        self.producer = Producer(
+            {
+                "bootstrap.servers": Config.KAFKA_BOOTSTRAP_SERVER,
+            }
+        )
         self.lock = threading.Lock()
 
     def StreamMetrics(self, request_iterator, context):
@@ -37,59 +39,48 @@ class MonitoringServiceServicer(monitoring_pb2_grpc.MonitoringServiceServicer):
         - Receives: stream MetricsRequest (periodic data from agent)
         - Forwards metrics to Kafka
         """
-
-        def process_requests():
-            try:
-                for request in request_iterator:
-                    self.producer.produce(
-                        Config.MONITORING_TOPIC,
-                        key=request.hostname.encode("utf-8"),
-                        value=json.dumps(
-                            {
-                                "hostname": request.hostname,
-                                "timestamp": request.timestamp,
-                                "metrics": {
-                                    "cpu_percent": request.metrics.cpu_percent,
-                                    "memory_percent": request.metrics.memory_percent,
-                                    "memory_used_mb": request.metrics.memory_used_mb,
-                                    "memory_total_mb": request.metrics.memory_total_mb,
-                                    "disk_read_mb": request.metrics.disk_read_mb,
-                                    "disk_write_mb": request.metrics.disk_write_mb,
-                                    "net_in_mb": request.metrics.net_in_mb,
-                                    "net_out_mb": request.metrics.net_out_mb,
-                                },
-                                "metadata": dict(request.metadata),
-                            }
-                        ).encode("utf-8"),
-                    )
-                    self.producer.flush()
-
-            except Exception as e:
-                print(f"Error processing requests: {e}")
-
-        recv_thread = threading.Thread(target=process_requests, daemon=True)
-        recv_thread.start()
-
         try:
-            while context.is_active():
-                client_hostname = dict(context.invocation_metadata()).get("hostname")
-                msg = self.consumer.poll(timeout=5)
-                if (
-                    msg is not None
-                    and msg.key().decode("utf-8") == client_hostname
-                    and not msg.error()
-                ):
-                    cmd = json.loads(msg.value())
-                    yield monitoring_pb2.Command(
-                        content=cmd["content"], timestamp=cmd["timestamp"]
-                    )
+            for request in request_iterator:
+                self.producer.produce(
+                    Config.MONITORING_TOPIC,
+                    key=request.hostname.encode("utf-8"),
+                    value=json.dumps(
+                        {
+                            "hostname": request.hostname,
+                            "timestamp": request.timestamp,
+                            "metrics": {
+                                "cpu_percent": request.metrics.cpu_percent,
+                                "memory_percent": request.metrics.memory_percent,
+                                "memory_used_mb": request.metrics.memory_used_mb,
+                                "memory_total_mb": request.metrics.memory_total_mb,
+                                "disk_read_mb": request.metrics.disk_read_mb,
+                                "disk_write_mb": request.metrics.disk_write_mb,
+                                "net_in_mb": request.metrics.net_in_mb,
+                                "net_out_mb": request.metrics.net_out_mb,
+                            },
+                            "metadata": MessageToDict(request.metadata),
+                        }
+                    ).encode("utf-8"),
+                )
+                self.producer.flush()
+
+                cmd_type = monitoring_pb2.CommandType.ACK
+                params = Struct()
+                cpu_percent = request.metrics.cpu_percent
+                if cpu_percent < 0.4:
+                    cmd_type = monitoring_pb2.CommandType.CONFIG
+                    params.update({"interval": 2})
+                elif cpu_percent > 0.7 and cpu_percent < 0.8:
+                    cmd_type = monitoring_pb2.CommandType.CONFIG
+                    params.update({"interval": 10})
+                elif cpu_percent >= 0.8:
+                    cmd_type = monitoring_pb2.CommandType.DIAGNOSTIC
+                    params.update({"key": "cpu_percent"})
+
+                yield monitoring_pb2.Command(type=cmd_type, params=params)
+
         except Exception as e:
-            print(f"Error in response stream: {e}")
-        finally:
-            recv_thread.join(timeout=2)
-
-
-_server_servicer = None
+            pass
 
 
 def serve(port):
@@ -101,18 +92,10 @@ def serve(port):
         kafka_bootstrap_servers: Kafka bootstrap servers (defaults to KAFKA_BOOTSTRAP_SERVERS env var or localhost:9092)
     """
 
-    global _server_servicer
-
-    wrapper = KafkaWrapper()
-    kafka_producer = wrapper.get_producer()
-    kafka_consumer = wrapper.get_consumer()
-
     # Create gRPC server
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=10))
-    _server_servicer = MonitoringServiceServicer(kafka_producer, kafka_consumer)
-    monitoring_pb2_grpc.add_MonitoringServiceServicer_to_server(
-        _server_servicer, server
-    )
+    _server_servicer = MonitoringServicer()
+    monitoring_pb2_grpc.add_MonitoringServicer_to_server(_server_servicer, server)
     server.add_insecure_port(f"[::]:{port}")
 
     server.start()
@@ -124,8 +107,3 @@ def serve(port):
     except KeyboardInterrupt:
         print("\n\nShutting down server...")
         server.stop(0)
-
-
-def get_server_servicer():
-    """Get the global server servicer instance"""
-    return _server_servicer

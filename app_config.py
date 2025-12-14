@@ -3,12 +3,14 @@ Configuration - Kafka topics and system settings
 """
 
 import os
+import socket
 import dotenv
 
 dotenv.load_dotenv()
 
 
 class Config:
+    HOSTNAME = socket.gethostname()
     HOST = os.getenv("GRPC_SERVER_HOST", "localhost")
     PORT = int(os.getenv("GRPC_SERVER_PORT", "50051"))
     MONITORING_TOPIC = "metrics"

@@ -5,7 +5,7 @@ Plugin Manager - loads and manages plugins dynamically
 import importlib
 import threading
 from typing import List, Dict, Any, Optional
-from shared import monitoring_pb2
+from protobuf import monitoring_pb2
 from agent.plugins.base import BasePlugin
 
 

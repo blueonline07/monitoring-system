@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from shared import monitoring_pb2 as shared_dot_monitoring__pb2
+from protobuf import monitoring_pb2 as protobuf_dot_monitoring__pb2
 
 GRPC_GENERATED_VERSION = '1.76.0'
 GRPC_VERSION = grpc.__version__
@@ -18,14 +18,14 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + ' but the generated code in shared/monitoring_pb2_grpc.py depends on'
+        + ' but the generated code in protobuf/monitoring_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
     )
 
 
-class MonitoringServiceStub(object):
+class MonitoringStub(object):
     """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
@@ -35,13 +35,13 @@ class MonitoringServiceStub(object):
             channel: A grpc.Channel.
         """
         self.StreamMetrics = channel.stream_stream(
-                '/monitoring.MonitoringService/StreamMetrics',
-                request_serializer=shared_dot_monitoring__pb2.MetricsRequest.SerializeToString,
-                response_deserializer=shared_dot_monitoring__pb2.Command.FromString,
+                '/monitoring.Monitoring/StreamMetrics',
+                request_serializer=protobuf_dot_monitoring__pb2.MetricsRequest.SerializeToString,
+                response_deserializer=protobuf_dot_monitoring__pb2.Command.FromString,
                 _registered_method=True)
 
 
-class MonitoringServiceServicer(object):
+class MonitoringServicer(object):
     """Missing associated documentation comment in .proto file."""
 
     def StreamMetrics(self, request_iterator, context):
@@ -51,22 +51,22 @@ class MonitoringServiceServicer(object):
         raise NotImplementedError('Method not implemented!')
 
 
-def add_MonitoringServiceServicer_to_server(servicer, server):
+def add_MonitoringServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'StreamMetrics': grpc.stream_stream_rpc_method_handler(
                     servicer.StreamMetrics,
-                    request_deserializer=shared_dot_monitoring__pb2.MetricsRequest.FromString,
-                    response_serializer=shared_dot_monitoring__pb2.Command.SerializeToString,
+                    request_deserializer=protobuf_dot_monitoring__pb2.MetricsRequest.FromString,
+                    response_serializer=protobuf_dot_monitoring__pb2.Command.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
-            'monitoring.MonitoringService', rpc_method_handlers)
+            'monitoring.Monitoring', rpc_method_handlers)
     server.add_generic_rpc_handlers((generic_handler,))
-    server.add_registered_method_handlers('monitoring.MonitoringService', rpc_method_handlers)
+    server.add_registered_method_handlers('monitoring.Monitoring', rpc_method_handlers)
 
 
  # This class is part of an EXPERIMENTAL API.
-class MonitoringService(object):
+class Monitoring(object):
     """Missing associated documentation comment in .proto file."""
 
     @staticmethod
@@ -83,9 +83,9 @@ class MonitoringService(object):
         return grpc.experimental.stream_stream(
             request_iterator,
             target,
-            '/monitoring.MonitoringService/StreamMetrics',
-            shared_dot_monitoring__pb2.MetricsRequest.SerializeToString,
-            shared_dot_monitoring__pb2.Command.FromString,
+            '/monitoring.Monitoring/StreamMetrics',
+            protobuf_dot_monitoring__pb2.MetricsRequest.SerializeToString,
+            protobuf_dot_monitoring__pb2.Command.FromString,
             options,
             channel_credentials,
             insecure,

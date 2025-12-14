@@ -2,6 +2,6 @@
 gRPC Server module - Receives data from agents and forwards to Kafka
 """
 
-from .server import MonitoringServiceServicer, serve
+from .server import MonitoringServicer, serve
 
-__all__ = ["MonitoringServiceServicer", "serve"]
+__all__ = ["MonitoringServicer", "serve"]

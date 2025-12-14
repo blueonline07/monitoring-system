@@ -3,7 +3,7 @@
 Entry point for running the gRPC server
 """
 
-from shared.config import Config
+from config import Config
 
 if __name__ == "__main__":
     from grpc_server.server import serve

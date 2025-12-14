@@ -3,12 +3,13 @@ Monitoring Agent - Modular architecture with collect, grpc, and plugins
 """
 
 import time
+import grpc
 import threading
 from typing import Dict, Any, Optional, Iterator
-from shared import monitoring_pb2
+from protobuf import monitoring_pb2, monitoring_pb2_grpc
+from google.protobuf.json_format import MessageToDict
 
 from agent.collect import MetricCollector
-from agent.grpc import GrpcClient
 from agent.plugin_manager import PluginManager
 from agent.etcd_config import EtcdConfigManager
 
@@ -43,20 +44,15 @@ class MonitoringAgent:
             etcd_port=etcd_port,
             config_key=config_key,
         )
-
-        # Load initial configuration
         initial_config = self.etcd_config.load_initial_config()
-
-        # Extract initial configuration
         self._interval_lock = threading.Lock()
         self._interval = initial_config.get("interval", 5)
         self.active_metrics = initial_config.get("metrics", [])
-
-        # Initialize modules with initial config
         self.collector = MetricCollector(hostname, self.active_metrics)
-        self.grpc_client = GrpcClient(server_address, hostname)
+        self.channel = None
+        self.stub = None
+        self.connected = False
         self.plugin_manager = PluginManager(initial_config)
-
         self.running = False
 
     @property
@@ -79,31 +75,24 @@ class MonitoringAgent:
         """
         print(f"Applying config update for agent {self.hostname}...")
 
-        # Update interval
         new_interval = new_config.get("interval", 5)
         self._update_interval(new_interval)
         print(f"  Updated interval: {new_interval}s")
 
-        # Update metrics
         new_metrics = new_config.get("metrics", [])
         if new_metrics != self.active_metrics:
             self.active_metrics = new_metrics
             self.collector.update_metrics(new_metrics)
             print(f"  Updated metrics: {new_metrics}")
 
-        # Reload plugins
         self.plugin_manager.load_plugins(new_config)
         print("Config update applied")
 
     def initialize(self):
         """Initialize agent and all modules"""
         print(f"Initializing agent {self.hostname}...")
-
-        # Load plugins with initial config
         initial_config = self.etcd_config.get_config()
         self.plugin_manager.load_plugins(initial_config)
-
-        # Start watching for config changes
         self.etcd_config.start_watching()
 
         # Set up config update callback
@@ -115,17 +104,18 @@ class MonitoringAgent:
             while self.running:
                 current_config = self.etcd_config.get_config()
                 if last_config != current_config:
-                    if last_config is not None:  # Skip initial load
+                    if last_config is not None:
                         self._on_config_update(current_config)
                     last_config = current_config.copy()
-                time.sleep(1)  # Check every second
+                time.sleep(1)
 
         self._config_monitor_thread = threading.Thread(
             target=config_monitor, daemon=True
         )
 
-        # Connect to gRPC server
-        self.grpc_client.connect()
+        self.channel = grpc.insecure_channel(self.server_address)
+        self.stub = monitoring_pb2_grpc.MonitoringStub(self.channel)
+        self.connected = True
 
         self.running = True
         self._config_monitor_thread.start()
@@ -139,27 +129,24 @@ class MonitoringAgent:
             MetricsRequest messages
         """
         while self.running:
-            # Collect metrics
-            metrics = self.collector.collect_metrics()
-            
-            # Save heartbeat to etcd after collecting metrics
+            metrics, metadata = self.collector.collect_metrics()
             self.etcd_config.save_heartbeat()
-            
-            metrics_request = self.collector.create_metrics_request(metrics)
-
-            # Process through plugins
+            metrics_request = self.collector.create_metrics_request(metrics, metadata)
             processed_request = self.plugin_manager.process_metrics(metrics_request)
-
-            # Only yield if not dropped by plugins
             if processed_request is not None:
                 yield processed_request
-
             time.sleep(self.interval)
 
     def run(self):
         """Run the agent - main execution loop"""
         try:
-            self.grpc_client.stream_metrics(metrics_generator=self.metrics_generator())
+            response_stream = self.stub.StreamMetrics(self.metrics_generator())
+            for cmd in response_stream:
+                if cmd.type == monitoring_pb2.CommandType.CONFIG:
+                    self.etcd_config.store_config(MessageToDict(cmd.params))
+                elif cmd.type == monitoring_pb2.CommandType.DIAGNOSTIC:
+                    self.collector.run_diag(key=MessageToDict(cmd.params)["key"])
+
         except KeyboardInterrupt:
             print("\nShutting down agent...")
         finally:
@@ -168,17 +155,13 @@ class MonitoringAgent:
     def finalize(self):
         """Finalize agent and cleanup resources"""
         self.running = False
-
-        # Stop watching etcd config
         self.etcd_config.stop_watching()
-
-        # Finalize plugins
         self.plugin_manager.finalize_all()
 
-        # Disconnect from gRPC server
-        self.grpc_client.disconnect()
+        if self.channel:
+            self.channel.close()
+            self.connected = False
 
-        # Close etcd connection
         self.etcd_config.close()
 
         print(f"Agent {self.hostname} finalized")

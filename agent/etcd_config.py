@@ -2,7 +2,6 @@
 etcd Configuration Manager - handles reading and watching configuration from etcd
 """
 
-import os
 import json
 import threading
 import time
@@ -137,7 +136,10 @@ class EtcdConfigManager:
                 "net in",
                 "net out",
             ],
-            "plugins": [],
+            "plugins": [
+                "agent.plugins.deduplication.Deduplication",
+                "agent.plugins.threshold_alert.ThresholdAlertPlugin",
+            ],
             "thresholds": {
                 "cpu_percent": 80.0,
                 "memory_percent": 85.0,

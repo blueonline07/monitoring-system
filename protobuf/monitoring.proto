@@ -2,10 +2,13 @@ syntax = "proto3";
 
 package monitoring;
 
-service MonitoringService {
+import "google/protobuf/struct.proto";
 
-    rpc StreamMetrics(stream MetricsRequest) returns (stream Command);
+service Monitoring {
+
+   rpc StreamMetrics(stream MetricsRequest) returns (stream Command);
 }
+
 message SystemMetrics {
     double cpu_percent = 1;
     double memory_percent = 2;
@@ -21,11 +24,16 @@ message MetricsRequest {
     string hostname = 1;
     SystemMetrics metrics = 2;
     int64 timestamp = 3;
-    map<string, string> metadata = 4;
+    google.protobuf.Struct metadata = 4;
+}
+
+enum CommandType {
+    ACK = 0;
+    CONFIG = 1;
+    DIAGNOSTIC = 2;
 }
 
 message Command {
-    string hostname = 1;
-    string content = 2;
-    int64 timestamp = 3;
+    CommandType type = 1;
+    google.protobuf.Struct params = 2;
 }

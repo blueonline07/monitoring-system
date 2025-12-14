@@ -3,8 +3,10 @@ Threshold Alert Plugin - alerts when metrics exceed configured thresholds
 """
 
 from typing import Dict, Any, Optional
-from shared import monitoring_pb2
+from protobuf import monitoring_pb2
 from agent.plugins.base import BasePlugin
+from google.protobuf.json_format import MessageToDict
+from google.protobuf.struct_pb2 import Struct
 
 
 class ThresholdAlertPlugin(BasePlugin):
@@ -54,7 +56,7 @@ class ThresholdAlertPlugin(BasePlugin):
         if metric_name in self.thresholds:
             threshold = self.thresholds[metric_name]
             if value > threshold:
-                return f"⚠️  ALERT: {metric_name}={value:.2f} exceeds threshold {threshold:.2f}"
+                return f"ALERT: {metric_name}={value:.2f} exceeds threshold {threshold:.2f}"
         return None
 
     def process(
@@ -92,12 +94,13 @@ class ThresholdAlertPlugin(BasePlugin):
                 self.alerts.append(alert)
                 print(alert)
 
-        # Add alerts to metadata if any
+        metadata = MessageToDict(metrics_request.metadata)
         if alerts_this_check:
-            metrics_request.metadata["alerts"] = "; ".join(alerts_this_check)
-            metrics_request.metadata["alert_count"] = str(len(alerts_this_check))
+            metadata["alerts"] = "; ".join(alerts_this_check)
+            metadata["alert_count"] = str(len(alerts_this_check))
 
-        # Always pass through (non-blocking plugin)
+        metrics_request.metadata = Struct()
+        metrics_request.metadata.update(metadata)
         return metrics_request
 
     def finalize(self):
@@ -111,5 +114,5 @@ class ThresholdAlertPlugin(BasePlugin):
         print(f"  Alert rate: {alert_rate:.1f}%")
         if self.alerts:
             print("  Recent alerts:")
-            for alert in self.alerts[-5:]:  # Show last 5 alerts
+            for alert in self.alerts[-5:]:
                 print(f"    {alert}")
