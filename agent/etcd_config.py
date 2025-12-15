@@ -61,7 +61,7 @@ class EtcdConfigManager:
             new_config: New configuration dictionary
         """
         with self._config_lock:
-            self._config = new_config.copy() | self._config
+            self._config = self._config | new_config.copy()
 
     def store_config(self, config: Dict[str, Any]) -> bool:
         """
